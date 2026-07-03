@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LUDBALL Scoreboard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="screen setup-screen" id="setupScreen">
+        <div class="setup-layout">
+          <div class="hero-copy">
+            <p class="eyebrow">HUMANOID SHOOT CHALLENGE</p>
+            <h1>LUDBALL</h1>
+            <p class="korean-title">루드봇 eP 슛 챌린지</p>
+            <div class="mission-card">
+              <span>MISSION</span>
+              <p>탁구공 10개를 던져 움직이는 루드봇 eP 상단 IoT 수집통에 가장 많이 골인시켜라!</p>
+              <ul class="event-facts">
+                <li>1인 1회 5분</li>
+                <li>실시간 점수·랭킹 표시</li>
+                <li>골인 감지 IoT 통 연동</li>
+              </ul>
+            </div>
+          </div>
+
+          <form class="setup-panel" id="setupForm">
+            <div class="panel-title">
+              <span>GAME READY</span>
+              <strong>SHOOT TRIAL</strong>
+            </div>
+
+            <button class="setting-button" type="button" data-setting="gameMode">
+              <span>게임 모드</span>
+              <strong id="gameModeLabel"><span>일반</span><span>플레이</span></strong>
+            </button>
+
+            <button class="setting-button" type="button" data-setting="teamCount">
+              <span>참여 팀 수</span>
+              <strong id="teamCountLabel">4팀</strong>
+            </button>
+
+            <button class="setting-button" type="button" data-setting="duration">
+              <span>제한 시간</span>
+              <strong id="durationLabel">60초</strong>
+            </button>
+
+            <button class="setting-button" type="button" data-setting="feverTime">
+              <span>피버타임</span>
+              <strong id="feverTimeLabel">마지막 10초</strong>
+            </button>
+
+            <div class="team-name-grid" id="teamNameGrid" aria-label="참여 팀"></div>
+
+            <button class="primary-button" type="submit">GAME READY</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="screen game-screen hidden" id="gameScreen">
+        <header class="game-header">
+          <div>
+            <span class="brand-mark compact">LUDBALL</span>
+            <p id="roundLabel">ROUND 01</p>
+            <p class="mode-label" id="modeLabel">NORMAL PLAY</p>
+          </div>
+          <div class="timer-box" id="timerBox">
+            <span>TIME</span>
+            <strong id="timerText">60</strong>
+          </div>
+          <div class="fever-box" id="feverBox">
+            <span>FEVER</span>
+            <strong id="feverText">READY</strong>
+          </div>
+        </header>
+
+        <div class="score-grid" id="scoreGrid"></div>
+
+        <div class="bottom-stage">
+          <div class="event-marquee" id="eventMarquee">READY · READY · READY</div>
+          <div class="stage-actions">
+            <button type="button" id="usbButton">USB 연결</button>
+            <button type="button" id="wifiButton">WIFI</button>
+            <button type="button" id="bgmButton">BGM</button>
+            <button type="button" id="startButton">GAME START</button>
+            <button type="button" id="pauseButton">PAUSE</button>
+            <button type="button" id="resetButton">RESET</button>
+            <button type="button" id="setupButton">OPTION</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen result-screen hidden" id="resultScreen">
+        <div class="result-card">
+          <p class="eyebrow">GAME OVER</p>
+          <h2 id="winnerText">TEAM A WIN</h2>
+          <p id="resultSummary">최종 점수 0점</p>
+          <div class="podium" id="podium"></div>
+          <div class="stage-actions">
+            <button type="button" id="replayButton">REPLAY</button>
+            <button type="button" id="resultSetupButton">OPTION</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="modal-backdrop hidden" id="settingModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="setting-modal">
+        <div class="modal-head">
+          <p id="modalTitle">설정 선택</p>
+          <button class="modal-close" type="button" id="modalClose" aria-label="닫기">×</button>
+        </div>
+        <div class="modal-options" id="modalOptions"></div>
+      </div>
+    </div>
+
+    <div class="countdown-overlay hidden" id="countdownOverlay" aria-live="assertive">
+      <div class="countdown-ring">
+        <span id="countdownLabel">3</span>
+      </div>
+      <strong id="countdownCaption">GET READY</strong>
+    </div>
+
+    <audio id="bgmAudio" src="./assets/bgm.mp4" preload="auto" loop playsinline></audio>
+    <script src="./app.js"></script>
+  </body>
+</html>
