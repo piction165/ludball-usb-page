@@ -60,7 +60,6 @@ const state = {
   wifiPollId: null,
   phase: "setup",
   countdownActive: false,
-  bgmEnabled: true,
 };
 
 const setupScreen = document.querySelector("#setupScreen");
@@ -89,7 +88,6 @@ const countdownCaption = document.querySelector("#countdownCaption");
 const startButton = document.querySelector("#startButton");
 const wifiButton = document.querySelector("#wifiButton");
 const usbButton = document.querySelector("#usbButton");
-const bgmButton = document.querySelector("#bgmButton");
 const bgmAudio = document.querySelector("#bgmAudio");
 const settingLabels = {
   gameMode: document.querySelector("#gameModeLabel"),
@@ -98,38 +96,15 @@ const settingLabels = {
   feverTime: document.querySelector("#feverTimeLabel"),
 };
 
-function updateBgmButton() {
-  if (!bgmButton || !bgmAudio) return;
-  bgmButton.textContent = state.bgmEnabled && !bgmAudio.paused ? "BGM ON" : "BGM";
-  bgmButton.classList.toggle("is-connected", state.bgmEnabled && !bgmAudio.paused);
-}
-
 async function playBgm() {
-  if (!bgmAudio || !state.bgmEnabled) return;
+  if (!bgmAudio) return;
 
   try {
     bgmAudio.volume = 0.42;
     await bgmAudio.play();
   } catch (error) {
-    state.bgmEnabled = false;
-    eventMarquee.textContent = "BGM 대기 · 버튼을 눌러 재생";
-  } finally {
-    updateBgmButton();
+    eventMarquee.textContent = "BGM 재생 대기 · GAME START를 다시 눌러주세요";
   }
-}
-
-function toggleBgm() {
-  if (!bgmAudio) return;
-
-  if (!bgmAudio.paused) {
-    state.bgmEnabled = false;
-    bgmAudio.pause();
-    updateBgmButton();
-    return;
-  }
-
-  state.bgmEnabled = true;
-  playBgm();
 }
 
 function renderTeamInputs() {
@@ -240,7 +215,6 @@ function buildGameFromSetup() {
 }
 
 function readyGameFromSetup({ requestSerial = true } = {}) {
-  playBgm();
   buildGameFromSetup();
   checkEspWifi({ announce: false });
   sendEspCommand("READY");
@@ -756,7 +730,6 @@ scoreGrid.addEventListener("click", (event) => {
 
 wifiButton.addEventListener("click", connectEspWifi);
 usbButton?.addEventListener("click", connectEspUsb);
-bgmButton?.addEventListener("click", toggleBgm);
 startButton.addEventListener("click", runCountdownAndStart);
 document.querySelector("#pauseButton").addEventListener("click", pauseGame);
 document.querySelector("#resetButton").addEventListener("click", () => resetGame(true));
