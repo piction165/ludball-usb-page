@@ -58,6 +58,8 @@ const state = {
   wifiConnected: false,
   wifiChecking: false,
   wifiPollId: null,
+  wifiPollMs: 150,
+  wifiHits: 0,
   phase: "setup",
   countdownActive: false,
 };
@@ -89,6 +91,7 @@ const startButton = document.querySelector("#startButton");
 const wifiButton = document.querySelector("#wifiButton");
 const usbButton = document.querySelector("#usbButton");
 const bgmAudio = document.querySelector("#bgmAudio");
+const scoreAudio = document.querySelector("#scoreAudio");
 const settingLabels = {
   gameMode: document.querySelector("#gameModeLabel"),
   teamCount: document.querySelector("#teamCountLabel"),
@@ -96,14 +99,117 @@ const settingLabels = {
   feverTime: document.querySelector("#feverTimeLabel"),
 };
 
-async function playBgm() {
-  if (!bgmAudio) return;
+let audioUnlocked = false;
+let audioContext = null;
+let bgmTimer = null;
+let bgmStep = 0;
+
+function getAudioContext() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return null;
+  if (!audioContext) audioContext = new AudioContextClass();
+  return audioContext;
+}
+
+function playTone(frequency, duration = 0.12, volume = 0.12, type = "square", delay = 0) {
+  const context = getAudioContext();
+  if (!context) return;
+
+  const startAt = context.currentTime + delay;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, startAt);
+  gain.gain.setValueAtTime(0.0001, startAt);
+  gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(startAt);
+  oscillator.stop(startAt + duration + 0.03);
+}
+
+async function unlockAudio() {
+  if (audioUnlocked) return;
 
   try {
-    bgmAudio.volume = 0.42;
-    await bgmAudio.play();
+    const context = getAudioContext();
+    if (context?.state === "suspended") await context.resume();
+
+    if (scoreAudio) {
+      const previousVolume = scoreAudio.volume;
+      scoreAudio.volume = 0;
+      await scoreAudio.play();
+      scoreAudio.pause();
+      scoreAudio.currentTime = 0;
+      scoreAudio.volume = previousVolume;
+    }
+    audioUnlocked = true;
   } catch (error) {
-    eventMarquee.textContent = "BGM 재생 대기 · GAME START를 다시 눌러주세요";
+    audioUnlocked = Boolean(audioContext);
+  }
+}
+
+async function playBgm() {
+  try {
+    await unlockAudio();
+    if (bgmAudio) {
+      bgmAudio.volume = 0.42;
+      await bgmAudio.play();
+      return;
+    }
+    startGeneratedBgm();
+  } catch (error) {
+    startGeneratedBgm();
+  }
+}
+
+async function startGeneratedBgm() {
+  const context = getAudioContext();
+  if (context?.state === "suspended") await context.resume();
+  if (bgmTimer) return;
+  const notes = [196, 247, 294, 247, 220, 262, 330, 262];
+  bgmTimer = window.setInterval(() => {
+    const note = notes[bgmStep % notes.length];
+    playTone(note, 0.16, 0.055, "sawtooth");
+    if (bgmStep % 2 === 0) playTone(note / 2, 0.18, 0.04, "triangle", 0.01);
+    bgmStep += 1;
+  }, 220);
+}
+
+function pauseBgm() {
+  if (bgmAudio) bgmAudio.pause();
+  window.clearInterval(bgmTimer);
+  bgmTimer = null;
+}
+
+async function playScoreSound() {
+  try {
+    await unlockAudio();
+    if (scoreAudio) {
+      const sound = scoreAudio.cloneNode(true);
+      sound.volume = 1;
+      sound.currentTime = 0;
+      sound.addEventListener("ended", () => sound.remove(), { once: true });
+      document.body.append(sound);
+      await sound.play();
+      return;
+    }
+  } catch (error) {
+  }
+
+  playTone(880, 0.08, 0.22, "square");
+  playTone(1320, 0.10, 0.18, "square", 0.06);
+}
+
+function playScoreBurst(count = 1) {
+  const plays = Math.max(1, Math.min(6, Number(count) || 1));
+  for (let index = 0; index < plays; index += 1) {
+    if (index === 0) {
+      playScoreSound();
+    } else {
+      window.setTimeout(playScoreSound, index * 90);
+    }
   }
 }
 
@@ -210,7 +316,7 @@ function buildGameFromSetup() {
   eventMarquee.textContent = state.gameMode === "tournament"
       ? "TOURNAMENT READY · 대진 순서 확인"
     : state.gameMode === "event"
-      ? "슛 챌린지 READY · 탁구공 10개 지급"
+      ? "슛 챌린지 READY · 탁구공 던지기"
       : "READY · 팀 박스 선택 후 START";
 }
 
@@ -257,8 +363,10 @@ function addScore(index, point) {
   if (!team) return;
 
   const feverBonus = state.running && isFeverTime() && point > 0 ? point : 0;
-  team.score = Math.max(0, team.score + point + feverBonus);
-  eventMarquee.textContent = `${team.name} +${point + feverBonus} · SCORE ${team.score}`;
+  const gained = point + feverBonus;
+  if (gained > 0) playScoreBurst(1);
+  team.score = Math.max(0, team.score + gained);
+  eventMarquee.textContent = `${team.name} +${gained} · SCORE ${team.score}`;
   renderGame();
 }
 
@@ -270,7 +378,10 @@ function handleSerialLine(line) {
   if (scoreMatch) {
     const team = state.teams[state.activeTeamIndex];
     if (team) {
-      team.score = Number(scoreMatch[1]);
+      const nextScore = Number(scoreMatch[1]);
+      const gained = Math.max(0, nextScore - team.score);
+      if (gained > 0) playScoreBurst(gained);
+      team.score = nextScore;
       eventMarquee.textContent = `ESP SCORE · ${team.name} ${team.score}`;
       renderGame();
     }
@@ -283,8 +394,13 @@ function handleSerialLine(line) {
   }
 
   if (["TEAM1", "TEAM1+1", "BOOT", "GOAL:1"].includes(message)) {
-    addScore(state.activeTeamIndex, 1);
-    eventMarquee.textContent = `ESP GOAL · ${state.teams[state.activeTeamIndex]?.name || "TEAM"} +1`;
+    if (state.running) {
+      addScore(state.activeTeamIndex, 1);
+      eventMarquee.textContent = `ESP GOAL · ${state.teams[state.activeTeamIndex]?.name || "TEAM"} +1`;
+    } else {
+      playScoreBurst(1);
+      eventMarquee.textContent = "ESP SENSOR · 효과음 테스트";
+    }
     return;
   }
 
@@ -435,7 +551,21 @@ function applyWifiScore(payload) {
   const team = state.teams[state.activeTeamIndex];
   if (!team) return;
 
+  let soundPlayedForHit = false;
+  if (typeof payload.hits === "number" && payload.hits !== state.wifiHits) {
+    const gainedHits = Math.max(0, payload.hits - state.wifiHits);
+    state.wifiHits = payload.hits;
+    if (gainedHits > 0) {
+      playScoreBurst(gainedHits);
+      soundPlayedForHit = true;
+      if (!state.running) eventMarquee.textContent = "WIFI SENSOR · 효과음 테스트";
+    }
+  }
+
   if (team.score !== payload.score) {
+    const didIncrease = payload.score > team.score;
+    const gained = didIncrease ? payload.score - team.score : 0;
+    if (didIncrease && gained > 0 && !soundPlayedForHit) playScoreBurst(1);
     team.score = payload.score;
     eventMarquee.textContent = `WIFI SCORE · ${team.name} ${team.score}`;
     renderGame();
@@ -455,7 +585,7 @@ function startWifiPolling() {
     } catch (error) {
       setWifiStatus({ connected: false, message: `ESP 끊김 · ${error.message || error}` });
     }
-  }, 1000);
+  }, state.wifiPollMs);
 }
 
 async function checkEspWifi({ announce = true } = {}) {
@@ -481,7 +611,7 @@ async function checkEspWifi({ announce = true } = {}) {
 }
 
 async function connectEspWifi() {
-  const savedIp = window.localStorage.getItem("ludballWifiIp") || "192.168.0.106";
+  const savedIp = window.localStorage.getItem("ludballWifiIp") || "192.168.4.1";
   const input = window.prompt("ESP IP", savedIp);
   if (!input) return false;
 
@@ -628,6 +758,7 @@ function pauseGame() {
   if (state.running && state.timerEndsAt) {
     setRemainingMs(state.timerEndsAt - performance.now());
   }
+  pauseBgm();
   state.running = false;
   if (state.phase === "running") state.phase = "paused";
   window.clearInterval(state.intervalId);
@@ -701,6 +832,8 @@ document.querySelectorAll("[data-setting]").forEach((button) => {
   button.addEventListener("click", () => openSettingModal(button.dataset.setting));
 });
 
+window.addEventListener("pointerdown", unlockAudio, { once: true });
+
 modalOptions.addEventListener("click", (event) => {
   const optionButton = event.target.closest("[data-setting-key]");
   if (!optionButton) return;
@@ -762,7 +895,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 renderSetupLabels();
-state.wifiBaseUrl = normalizeWifiBaseUrl(window.localStorage.getItem("ludballWifiIp") || "192.168.0.106");
+state.wifiBaseUrl = normalizeWifiBaseUrl(window.localStorage.getItem("ludballWifiIp") || "192.168.4.1");
 setWifiStatus({ connected: false, message: `ESP 확인 대기 · ${state.wifiBaseUrl.replace(/^https?:\/\//i, "")}` });
 checkEspWifi({ announce: false });
 startWifiPolling();
