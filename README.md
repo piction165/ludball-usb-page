@@ -1,6 +1,6 @@
-# LUDBALL USB Page
+# Ludball Challenge
 
-Static LUDBALL scoreboard page with USB/Wi-Fi ESP score integration and bundled BGM.
+Static Ludball Challenge scoreboard page with USB/BLE ESP score integration and bundled BGM/effects.
 
 ## Local Preview
 

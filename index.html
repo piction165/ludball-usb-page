@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>LUDBALL Scoreboard</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <title>Ludball Challenge</title>
+    <link rel="stylesheet" href="./styles.css?v=20260806-latest-sound" />
   </head>
   <body>
     <main class="app-shell">
@@ -12,15 +12,15 @@
         <div class="setup-layout">
           <div class="hero-copy">
             <p class="eyebrow">HUMANOID SHOOT CHALLENGE</p>
-            <h1>LUDBALL</h1>
+            <h1>LUDBALL CHALLENGE</h1>
             <p class="korean-title">루드봇 eP 슛 챌린지</p>
             <div class="mission-card">
               <span>MISSION</span>
-              <p>탁구공을 던져 움직이는 루드봇 eP 상단 IoT 수집통에 가장 많이 골인시켜라!</p>
+              <p>풀볼을 던져 움직이는 루드봇 eP 상단 IoT 수집통에 가장 많이 골인시켜라!</p>
               <ul class="event-facts">
-                <li>1인 1회 5분</li>
-                <li>실시간 점수·랭킹 표시</li>
-                <li>골인 감지 IoT 통 연동</li>
+                <li>1인 1회 제한시간 선택</li>
+                <li>점수 내기·대결 모드 선택</li>
+                <li>EASY·MIDDLE·HARD 난이도</li>
               </ul>
             </div>
           </div>
@@ -38,17 +38,17 @@
 
             <button class="setting-button" type="button" data-setting="teamCount">
               <span>참여 팀 수</span>
-              <strong id="teamCountLabel">4팀</strong>
+              <strong id="teamCountLabel">2팀</strong>
+            </button>
+
+            <button class="setting-button" type="button" data-setting="difficulty">
+              <span>난이도</span>
+              <strong id="difficultyLabel">EASY</strong>
             </button>
 
             <button class="setting-button" type="button" data-setting="duration">
               <span>제한 시간</span>
-              <strong id="durationLabel">60초</strong>
-            </button>
-
-            <button class="setting-button" type="button" data-setting="feverTime">
-              <span>피버타임</span>
-              <strong id="feverTimeLabel">마지막 10초</strong>
+              <strong id="durationLabel">2분</strong>
             </button>
 
             <div class="team-name-grid" id="teamNameGrid" aria-label="참여 팀"></div>
@@ -61,7 +61,7 @@
       <section class="screen game-screen hidden" id="gameScreen">
         <header class="game-header">
           <div>
-            <span class="brand-mark compact">LUDBALL</span>
+            <span class="brand-mark compact">LUDBALL CHALLENGE</span>
             <p id="roundLabel">ROUND 01</p>
             <p class="mode-label" id="modeLabel">NORMAL PLAY</p>
           </div>
@@ -69,19 +69,31 @@
             <span>TIME</span>
             <strong id="timerText">60</strong>
           </div>
-          <div class="fever-box" id="feverBox">
-            <span>FEVER</span>
-            <strong id="feverText">READY</strong>
-          </div>
         </header>
 
-        <div class="score-grid" id="scoreGrid"></div>
+        <div class="score-stage">
+          <aside class="record-board" aria-label="점수 기록">
+            <span class="record-kicker">SCORE RECORD</span>
+            <div class="record-head">
+              <strong>점수 기록</strong>
+              <button class="record-add-button" type="button" id="recordAddButton" aria-label="점수 기록하기">기록하기</button>
+            </div>
+            <form class="record-form hidden" id="recordForm">
+              <input id="recordNameInput" type="text" placeholder="팀명" autocomplete="off" />
+              <input id="recordScoreInput" type="number" inputmode="numeric" min="0" max="999" placeholder="점수" />
+              <button type="submit" id="recordSubmitButton">점수 기록하기</button>
+              <button type="button" class="record-cancel-button hidden" id="recordCancelButton">취소</button>
+            </form>
+            <ol id="recordList"></ol>
+          </aside>
+          <div class="score-grid" id="scoreGrid"></div>
+        </div>
 
         <div class="bottom-stage">
           <div class="event-marquee" id="eventMarquee">READY · READY · READY</div>
           <div class="stage-actions">
             <button type="button" id="usbButton">USB 연결</button>
-            <button type="button" id="wifiButton">WIFI</button>
+            <button type="button" id="wifiButton">BLE 연결</button>
             <button type="button" id="startButton">GAME START</button>
             <button type="button" id="pauseButton">PAUSE</button>
             <button type="button" id="resetButton">RESET</button>
@@ -121,8 +133,22 @@
       <strong id="countdownCaption">GET READY</strong>
     </div>
 
-    <audio id="bgmAudio" src="https://ludball-usb-page.vercel.app/assets/bgm.mp4" preload="auto" loop playsinline></audio>
+    <div class="record-celebration hidden" id="recordCelebration" role="dialog" aria-modal="true" aria-labelledby="celebrationTitle">
+      <div class="fanfare fanfare-left" aria-hidden="true"></div>
+      <div class="fanfare fanfare-right" aria-hidden="true"></div>
+      <div class="confetti-field" id="confettiField" aria-hidden="true"></div>
+      <div class="record-celebration-card">
+        <p>NEW RECORD</p>
+        <h2 id="celebrationTitle">신기록!</h2>
+        <strong id="celebrationScore">0점</strong>
+        <span id="celebrationName">TEAM</span>
+        <button type="button" id="celebrationClose">확인</button>
+      </div>
+    </div>
+
+    <audio id="bgmAudio" src="./assets/bgm.m4a" preload="auto" loop playsinline></audio>
     <audio id="scoreAudio" src="./assets/score-up.mp3" preload="auto" playsinline></audio>
-    <script src="./app.js"></script>
+    <audio id="recordAudio" src="./assets/record-cheer.mp3" preload="auto" playsinline></audio>
+    <script src="./app.js?v=20260806-latest-sound"></script>
   </body>
 </html>
