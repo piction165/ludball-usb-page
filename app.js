@@ -90,6 +90,8 @@ const bleServiceUuid = "8f7a2d80-4f3b-4e62-9d1d-3c5484e6b201";
 const bleNotifyUuid = "8f7a2d81-4f3b-4e62-9d1d-3c5484e6b201";
 const bleWriteUuid = "8f7a2d82-4f3b-4e62-9d1d-3c5484e6b201";
 const remoteMainButtonLockMs = 240;
+const defaultBallCountDegrees = 360;
+const defaultBallCountSpeed = 2000;
 const legacyConnectionStorageKeys = ["ludballWifiIp"];
 
 const setupScreen = document.querySelector("#setupScreen");
@@ -128,8 +130,6 @@ const ballCountReset = document.querySelector("#ballCountReset");
 const ballCountValue = document.querySelector("#ballCountValue");
 const ballCountTeam = document.querySelector("#ballCountTeam");
 const ballCountStatus = document.querySelector("#ballCountStatus");
-const ballCountDegrees = document.querySelector("#ballCountDegrees");
-const ballCountSpeed = document.querySelector("#ballCountSpeed");
 const bgmAudio = document.querySelector("#bgmAudio");
 const scoreAudio = document.querySelector("#scoreAudio");
 const recordAudio = document.querySelector("#recordAudio");
@@ -810,17 +810,14 @@ async function startBallCounting() {
   renderGame();
   updateBallCountUi(`${team?.name || "팀"} 점수 세기 준비`);
 
-  const speed = Math.max(120, Math.min(5000, Math.trunc(Number(ballCountSpeed?.value) || 2500)));
-  const degrees = Math.max(-360, Math.min(360, Number(ballCountDegrees?.value) || 360));
   await sendBallCountCommand("RESET", "점수 리셋");
-  await sendBallCountCommand(`SPEED ${speed}`, `속도 ${speed}us 설정`);
+  await sendBallCountCommand(`SPEED ${defaultBallCountSpeed}`, `속도 ${defaultBallCountSpeed}us 설정`);
   await sendBallCountCommand("START", "IR 점수 감지 대기 중");
-  await sendBallCountCommand(`ROT ${degrees}`, `${degrees}도 천천히 회전 · 점수 집계 중`);
+  await sendBallCountCommand(`ROT ${defaultBallCountDegrees}`, `${defaultBallCountDegrees}도 천천히 회전 · 점수 집계 중`);
 }
 
 async function rotateBallCounter() {
-  const degrees = Math.max(-360, Math.min(360, Number(ballCountDegrees?.value) || 360));
-  await sendBallCountCommand(`ROT ${degrees}`, `${degrees}도 회전`);
+  await sendBallCountCommand(`ROT ${defaultBallCountDegrees}`, `${defaultBallCountDegrees}도 회전`);
 }
 
 async function stopBallCounting() {

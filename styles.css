@@ -1130,8 +1130,7 @@ button:active {
 }
 
 .ball-count-readout span,
-.ball-count-readout em,
-.ball-count-settings span {
+.ball-count-readout em {
   color: var(--muted);
   font-style: normal;
   font-weight: 1000;
@@ -1192,31 +1191,6 @@ button:active {
   border-color: rgba(44, 255, 154, 0.82);
   background: rgba(44, 255, 154, 0.16);
   color: var(--green);
-}
-
-.ball-count-settings {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.ball-count-settings label {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
-.ball-count-settings input {
-  width: 100%;
-  min-height: 56px;
-  border: 1px solid rgba(95, 252, 255, 0.38);
-  border-radius: 14px;
-  background: rgba(2, 6, 14, 0.74);
-  color: var(--white);
-  padding: 8px 12px;
-  font-weight: 1000;
-  font-size: 22px;
-  outline: none;
 }
 
 .countdown-overlay {
@@ -1499,7 +1473,6 @@ button:active {
   }
 
   .ball-count-grid,
-  .ball-count-settings,
   .ball-count-control-row,
   .ball-count-control-row:first-child {
     grid-template-columns: 1fr;

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Ludball Challenge</title>
-    <link rel="stylesheet" href="./styles.css?v=20260808-team-score-count-direct" />
+    <link rel="stylesheet" href="./styles.css?v=20260808-fixed-score-count-speed" />
   </head>
   <body>
     <main class="app-shell">
@@ -159,16 +159,6 @@
               <button type="button" id="ballCountStop">STOP</button>
               <button type="button" id="ballCountReset">RESET</button>
             </div>
-            <div class="ball-count-settings">
-              <label>
-                <span>회전 각도</span>
-                <input id="ballCountDegrees" type="number" inputmode="numeric" min="-360" max="360" step="1" value="360" />
-              </label>
-              <label>
-                <span>속도 us</span>
-                <input id="ballCountSpeed" type="number" inputmode="numeric" min="120" max="5000" step="10" value="2500" />
-              </label>
-            </div>
           </section>
         </div>
       </div>
@@ -190,6 +180,6 @@
     <audio id="bgmAudio" src="./assets/bgm.m4a" preload="auto" loop playsinline></audio>
     <audio id="scoreAudio" src="./assets/score-up.mp3" preload="auto" playsinline></audio>
     <audio id="recordAudio" src="./assets/record-cheer.mp3" preload="auto" playsinline></audio>
-    <script src="./app.js?v=20260808-team-score-count-direct"></script>
+    <script src="./app.js?v=20260808-fixed-score-count-speed"></script>
   </body>
 </html>
