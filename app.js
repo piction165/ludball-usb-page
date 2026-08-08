@@ -75,6 +75,9 @@ const state = {
   wifiHits: 0,
   wifiScore: 0,
   wifiRunning: false,
+  ballCountActive: false,
+  ballCountValue: 0,
+  ballCountTeamReady: false,
   phase: "setup",
   countdownActive: false,
   remoteMainButtonLatched: false,
@@ -87,6 +90,7 @@ const bleServiceUuid = "8f7a2d80-4f3b-4e62-9d1d-3c5484e6b201";
 const bleNotifyUuid = "8f7a2d81-4f3b-4e62-9d1d-3c5484e6b201";
 const bleWriteUuid = "8f7a2d82-4f3b-4e62-9d1d-3c5484e6b201";
 const remoteMainButtonLockMs = 240;
+const legacyConnectionStorageKeys = ["ludballWifiIp"];
 
 const setupScreen = document.querySelector("#setupScreen");
 const gameScreen = document.querySelector("#gameScreen");
@@ -114,9 +118,27 @@ const countdownCaption = document.querySelector("#countdownCaption");
 const startButton = document.querySelector("#startButton");
 const wifiButton = document.querySelector("#wifiButton");
 const usbButton = document.querySelector("#usbButton");
+const ballCountModal = document.querySelector("#ballCountModal");
+const ballCountClose = document.querySelector("#ballCountClose");
+const ballCountConnect = document.querySelector("#ballCountConnect");
+const ballCountStart = document.querySelector("#ballCountStart");
+const ballCountRotate = document.querySelector("#ballCountRotate");
+const ballCountStop = document.querySelector("#ballCountStop");
+const ballCountReset = document.querySelector("#ballCountReset");
+const ballCountValue = document.querySelector("#ballCountValue");
+const ballCountTeam = document.querySelector("#ballCountTeam");
+const ballCountStatus = document.querySelector("#ballCountStatus");
+const ballCountDegrees = document.querySelector("#ballCountDegrees");
+const ballCountSpeed = document.querySelector("#ballCountSpeed");
 const bgmAudio = document.querySelector("#bgmAudio");
 const scoreAudio = document.querySelector("#scoreAudio");
 const recordAudio = document.querySelector("#recordAudio");
+
+document.querySelectorAll("#usbButton, .stage-actions button").forEach((button) => {
+  if (button.id === "usbButton" || button.textContent.trim().includes("USB")) {
+    button.remove();
+  }
+});
 const recordAddButton = document.querySelector("#recordAddButton");
 const recordForm = document.querySelector("#recordForm");
 const recordNameInput = document.querySelector("#recordNameInput");
@@ -510,6 +532,7 @@ function buildGameFromSetup() {
   state.phase = "ready";
   state.countdownActive = false;
   state.activeTeamIndex = 0;
+  state.ballCountTeamReady = false;
   state.teams = Array.from({ length: state.teamCount }, (_, index) => ({
     name: defaultNames[index],
     score: 0,
@@ -527,7 +550,6 @@ function buildGameFromSetup() {
 function readyGameFromSetup({ requestSerial = true } = {}) {
   unlockAudio();
   buildGameFromSetup();
-  checkEspWifi({ announce: false });
   sendEspCommand("READY");
 }
 
@@ -547,12 +569,15 @@ function renderGame() {
     card.classList.toggle("is-complete", team.completed);
     card.style.setProperty("--accent", team.accent);
     card.dataset.teamIndex = String(index);
+    card.tabIndex = 0;
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-label", `${team.name} 점수 세기 열기`);
     card.innerHTML = `
       <div class="team-name">
         <span>${team.name}</span>
       </div>
       <div class="score-value" aria-label="${team.name} 점수">${team.score}</div>
-      <div class="team-status">${index === state.activeTeamIndex ? "SELECTED" : team.completed ? "DONE" : "CLICK SELECT"}</div>
+      <div class="team-status">${index === state.activeTeamIndex ? state.ballCountTeamReady ? "점수 세기" : "SELECTED" : team.completed ? "DONE" : "TEAM SELECT"}</div>
     `;
     scoreGrid.append(card);
   });
@@ -640,6 +665,177 @@ function adjustActiveTeamScore(delta) {
   const team = state.teams[state.activeTeamIndex];
   if (!team) return;
   setManualScore(state.activeTeamIndex, team.score + delta, { playSound: delta > 0 });
+}
+
+function isBallCountModalOpen() {
+  return ballCountModal && !ballCountModal.classList.contains("hidden");
+}
+
+function suspendMainGameForBallCount() {
+  if (state.countdownActive) {
+    state.countdownActive = false;
+    hideCountdown();
+    startButton.disabled = false;
+  }
+
+  if (state.running || state.timerEndsAt) {
+    pauseGame();
+  } else {
+    stopTimer();
+  }
+}
+
+function updateBallCountUi(message = "") {
+  const team = state.teams[state.activeTeamIndex];
+  const bleLive = isBleActuallyConnected();
+  if (ballCountValue) ballCountValue.textContent = String(state.ballCountValue);
+  if (ballCountTeam) ballCountTeam.textContent = team?.name || "TEAM";
+  if (ballCountConnect) {
+    ballCountConnect.textContent = bleLive ? "BLE 연결됨" : "BLE 연결";
+    ballCountConnect.classList.toggle("is-connected", bleLive);
+  }
+  if (ballCountStatus) {
+    ballCountStatus.textContent = message || (
+      bleLive
+        ? `${team?.name || "팀"} 점수 세기 연결됨`
+        : `${team?.name || "팀"} 선택됨 · BLE 연결 대기`
+    );
+  }
+}
+
+function clearLegacyConnectionCache() {
+  legacyConnectionStorageKeys.forEach((key) => window.localStorage.removeItem(key));
+  state.serialPort = null;
+  state.serialReader = null;
+  state.serialWriter = null;
+  state.serialConnected = false;
+  state.serialConnecting = false;
+  state.wifiBaseUrl = "";
+  state.wifiConnected = false;
+  state.wifiChecking = false;
+  state.wifiHits = 0;
+  state.wifiScore = 0;
+  window.clearInterval(state.wifiPollId);
+  state.wifiPollId = null;
+}
+
+function isBleActuallyConnected() {
+  return Boolean(
+    state.bleConnected &&
+    state.bleDevice?.gatt?.connected &&
+    state.bleWriteCharacteristic
+  );
+}
+
+function openBallCountModal(teamIndex = state.activeTeamIndex) {
+  if (!state.teams.length || !setupScreen.classList.contains("hidden")) {
+    buildGameFromSetup();
+  }
+  const normalizedTeamIndex = Math.max(0, Math.min(state.teams.length - 1, Number(teamIndex) || 0));
+  if (state.teams[normalizedTeamIndex] && !state.running && !state.countdownActive) {
+    state.activeTeamIndex = normalizedTeamIndex;
+    state.phase = "ready";
+    state.ballCountTeamReady = true;
+    setRemainingMs(state.duration * 1000);
+    startButton.disabled = false;
+    eventMarquee.textContent = `${state.teams[normalizedTeamIndex].name} SCORE COUNT · 점수 세기 준비`;
+    renderGame();
+    sendEspCommand("READY");
+  }
+  suspendMainGameForBallCount();
+  ballCountModal?.classList.remove("hidden");
+  updateBallCountUi();
+}
+
+function closeBallCountModal() {
+  ballCountModal?.classList.add("hidden");
+}
+
+async function postBallCountToCloud(score) {
+  try {
+    await fetch(cloudScoreUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({
+        score,
+        hits: score,
+        running: state.ballCountActive,
+        reason: "ble-ball-count",
+      }),
+    });
+  } catch (error) {
+    eventMarquee.textContent = `SCORE SYNC 실패 · ${error.message || error}`;
+  }
+}
+
+function applyBallCountScore(nextScore) {
+  const normalizedScore = Math.max(0, Math.min(999, Math.trunc(Number(nextScore) || 0)));
+  const previousScore = state.ballCountValue;
+  state.ballCountValue = normalizedScore;
+  const team = state.teams[state.activeTeamIndex];
+  if (team) {
+    team.score = normalizedScore;
+    if (normalizedScore > previousScore) playScoreBurst(Math.min(6, normalizedScore - previousScore));
+    renderGame();
+  }
+  updateBallCountUi(normalizedScore > previousScore ? "IR 감지됨 · 점수 반영" : undefined);
+  void postBallCountToCloud(normalizedScore);
+}
+
+async function connectBallCountBle() {
+  const connected = await connectEspBle();
+  const team = state.teams[state.activeTeamIndex];
+  updateBallCountUi(connected ? `${team?.name || "팀"} 점수 세기 연결됨` : "BLE 연결 실패 · 보드 전원/이름 확인");
+  return connected;
+}
+
+async function sendBallCountCommand(command, message = "") {
+  if (!isBleActuallyConnected() && !(await connectBallCountBle())) return false;
+  const sent = await sendEspCommand(command);
+  updateBallCountUi(sent ? message : "명령 전송 실패 · BLE 연결 확인");
+  return sent;
+}
+
+async function startBallCounting() {
+  await unlockAudio();
+  if (!state.teams.length || !gameScreen || gameScreen.classList.contains("hidden")) {
+    buildGameFromSetup();
+  }
+  suspendMainGameForBallCount();
+  state.ballCountActive = true;
+  state.ballCountValue = 0;
+  const team = state.teams[state.activeTeamIndex];
+  if (team) team.score = 0;
+  renderGame();
+  updateBallCountUi(`${team?.name || "팀"} 점수 세기 준비`);
+
+  const speed = Math.max(120, Math.min(5000, Math.trunc(Number(ballCountSpeed?.value) || 2500)));
+  const degrees = Math.max(-360, Math.min(360, Number(ballCountDegrees?.value) || 360));
+  await sendBallCountCommand("RESET", "점수 리셋");
+  await sendBallCountCommand(`SPEED ${speed}`, `속도 ${speed}us 설정`);
+  await sendBallCountCommand("START", "IR 점수 감지 대기 중");
+  await sendBallCountCommand(`ROT ${degrees}`, `${degrees}도 천천히 회전 · 점수 집계 중`);
+}
+
+async function rotateBallCounter() {
+  const degrees = Math.max(-360, Math.min(360, Number(ballCountDegrees?.value) || 360));
+  await sendBallCountCommand(`ROT ${degrees}`, `${degrees}도 회전`);
+}
+
+async function stopBallCounting() {
+  state.ballCountActive = false;
+  await sendBallCountCommand("FINISH", "점수 세기 정지");
+}
+
+async function resetBallCounting() {
+  state.ballCountActive = false;
+  state.ballCountValue = 0;
+  const team = state.teams[state.activeTeamIndex];
+  if (team) team.score = 0;
+  renderGame();
+  updateBallCountUi("점수 리셋");
+  await sendBallCountCommand("RESET", "점수 리셋");
 }
 
 async function pressMainRemoteButton() {
@@ -766,11 +962,19 @@ function handleOperatorCommand(command) {
 
   switch (normalized) {
     case "READY":
+      if (isBallCountModalOpen() || state.ballCountActive) {
+        updateBallCountUi("점수 세기 준비 완료");
+        return true;
+      }
       if (!setupScreen.classList.contains("hidden")) readyGameFromSetup();
       else resetGame(true);
       return true;
     case "START":
     case "GO":
+      if (isBallCountModalOpen() || state.ballCountActive) {
+        updateBallCountUi("IR 점수 감지 실행 중");
+        return true;
+      }
       handleRemoteMainButtonPress();
       return true;
     case "PAUSE":
@@ -781,7 +985,18 @@ function handleOperatorCommand(command) {
       handleRemoteMainButtonPress();
       return true;
     case "RESET":
+      if (isBallCountModalOpen() || state.ballCountActive) {
+        updateBallCountUi("점수 리셋");
+        return true;
+      }
       resetGame(true);
+      return true;
+    case "FINISH":
+      if (isBallCountModalOpen() || state.ballCountActive) {
+        updateBallCountUi("점수 세기 정지");
+        return true;
+      }
+      if (state.running) pauseGame();
       return true;
     case "OPTION":
     case "SETUP":
@@ -850,16 +1065,21 @@ function handleSerialLine(line) {
     const team = state.teams[state.activeTeamIndex];
     if (team) {
       const nextScore = Number(scoreMatch[1]);
-      const gained = Math.max(0, nextScore - team.score);
-      if (gained > 0) playScoreBurst(gained);
-      team.score = nextScore;
-      eventMarquee.textContent = `ESP SCORE · ${team.name} ${team.score}`;
-      renderGame();
+      if (isBallCountModalOpen() || state.ballCountActive) {
+        applyBallCountScore(nextScore);
+      } else {
+        const gained = Math.max(0, nextScore - team.score);
+        if (gained > 0) playScoreBurst(gained);
+        team.score = nextScore;
+        eventMarquee.textContent = `ESP SCORE · ${team.name} ${team.score}`;
+        renderGame();
+      }
     }
     return;
   }
 
   if (message.startsWith("HIT:")) {
+    updateBallCountUi("IR 센서 감지 · 점수 수신 대기");
     eventMarquee.textContent = `ESP GOAL · SENSOR ${message.slice(4)}`;
     return;
   }
@@ -906,14 +1126,14 @@ async function openEspPort(port) {
   state.serialConnected = true;
   state.serialWriter = port.writable?.getWriter ? port.writable.getWriter() : null;
   if (usbButton) {
-    usbButton.textContent = "USB 연결됨";
-    usbButton.classList.add("is-connected");
+    usbButton.textContent = "BLE 연결";
+    usbButton.classList.remove("is-connected");
   }
-  eventMarquee.textContent = "ESP CONNECTED · GAME START 대기";
+  eventMarquee.textContent = "USB 연결 비활성화 · BLE만 사용";
   readSerialPort(port).catch((error) => {
     state.serialConnected = false;
     state.serialWriter = null;
-    eventMarquee.textContent = `ESP 연결 끊김 · ${error.message || error}`;
+    eventMarquee.textContent = `USB 비활성화 · ${error.message || error}`;
   });
 }
 
@@ -940,6 +1160,7 @@ function handleBleNotification(event) {
 
 function handleBleDisconnect() {
   state.bleConnected = false;
+  state.bleDevice = null;
   state.bleServer = null;
   state.bleNotifyCharacteristic = null;
   state.bleWriteCharacteristic = null;
@@ -947,6 +1168,7 @@ function handleBleDisconnect() {
     wifiButton.textContent = "BLE 연결";
     wifiButton.classList.remove("is-connected");
   }
+  updateBallCountUi("BLE 연결 끊김 · 다시 연결 필요");
   eventMarquee.textContent = "BLE DISCONNECTED · 다시 연결 대기";
 }
 
@@ -956,7 +1178,8 @@ async function connectEspBle() {
     eventMarquee.textContent = "WEB BLUETOOTH 미지원 · CHROME/EDGE 필요";
     return false;
   }
-  if (state.bleConnected) return true;
+  if (isBleActuallyConnected()) return true;
+  handleBleDisconnect();
   if (state.bleConnecting) return false;
 
   state.bleConnecting = true;
@@ -986,6 +1209,7 @@ async function connectEspBle() {
       wifiButton.textContent = "BLE 연결됨";
       wifiButton.classList.add("is-connected");
     }
+    updateBallCountUi(`BLE CONNECTED · ${device.name || "LUD-COUNT"}`);
     eventMarquee.textContent = "BLE CONNECTED · ESP 버튼 대기";
     await sendBleCommand("READY");
     return true;
@@ -1003,7 +1227,10 @@ async function connectEspBle() {
 }
 
 async function sendBleCommand(command) {
-  if (!state.bleConnected || !state.bleWriteCharacteristic) return false;
+  if (!isBleActuallyConnected()) {
+    handleBleDisconnect();
+    return false;
+  }
   try {
     const data = new TextEncoder().encode(`${command}\n`);
     if (state.bleWriteCharacteristic.properties.writeWithoutResponse) {
@@ -1013,6 +1240,7 @@ async function sendBleCommand(command) {
     }
     return true;
   } catch (error) {
+    state.bleConnected = false;
     eventMarquee.textContent = `BLE 명령 실패 · ${error.message || error}`;
     return false;
   }
@@ -1073,15 +1301,15 @@ async function connectEspUsb() {
 function setWifiStatus({ connected, checking = false, message = "" } = {}) {
   state.wifiConnected = connected;
   state.wifiChecking = checking;
-  wifiButton.classList.toggle("is-connected", connected);
+  wifiButton.classList.toggle("is-connected", isBleActuallyConnected());
   wifiButton.classList.toggle("is-checking", checking);
 
   if (checking) {
-    wifiButton.textContent = "ESP 확인";
+    wifiButton.textContent = "BLE 확인";
     return;
   }
 
-  wifiButton.textContent = connected ? "ESP 연결됨" : "ESP 연결";
+  wifiButton.textContent = isBleActuallyConnected() ? "BLE 연결됨" : "BLE 연결";
   if (message) eventMarquee.textContent = message;
 }
 
@@ -1168,13 +1396,14 @@ function applyWifiScore(payload) {
 }
 
 function startWifiPolling() {
+  return;
   window.clearInterval(state.wifiPollId);
   state.wifiPollId = window.setInterval(async () => {
     if (!state.wifiBaseUrl || state.wifiChecking) return;
     try {
       const payload = await fetchWifiState("/score");
       if (!state.wifiConnected) {
-        setWifiStatus({ connected: true, message: `ESP 연결됨 · ${state.wifiBaseUrl}` });
+        setWifiStatus({ connected: false, message: "Wi-Fi 연결 비활성화 · BLE만 사용" });
       }
       applyWifiScore(payload);
     } catch (error) {
@@ -1184,14 +1413,22 @@ function startWifiPolling() {
 }
 
 async function checkEspWifi({ announce = true } = {}) {
+  state.wifiBaseUrl = "";
+  setWifiStatus({
+    connected: false,
+    checking: false,
+    message: announce ? "Wi-Fi 연결 비활성화 · BLE만 사용" : "",
+  });
+  return false;
+
   if (!state.wifiBaseUrl) return false;
   setWifiStatus({ connected: false, checking: true });
 
   try {
     const payload = await fetchWifiState("/score");
     setWifiStatus({
-      connected: true,
-      message: announce ? `ESP 연결됨 · ${state.wifiBaseUrl}` : "",
+      connected: false,
+      message: announce ? "Wi-Fi 연결 비활성화 · BLE만 사용" : "",
     });
     applyWifiScore(payload);
     startWifiPolling();
@@ -1207,43 +1444,18 @@ async function checkEspWifi({ announce = true } = {}) {
 
 async function connectEspWifi() {
   unlockAudio();
-  state.wifiBaseUrl = directEspBaseUrl;
-  window.localStorage.setItem("ludballWifiIp", directEspBaseUrl);
-  return checkEspWifi();
+  eventMarquee.textContent = "Wi-Fi/USB 연결 비활성화 · BLE만 사용";
+  return false;
 }
 
 async function sendEspCommand(command) {
   if (String(command).startsWith("TEAM:")) return true;
 
-  if (state.bleConnected && await sendBleCommand(command)) {
+  if (isBleActuallyConnected() && await sendBleCommand(command)) {
     return true;
   }
 
-  if (!state.wifiConnected && state.wifiBaseUrl) {
-    await checkEspWifi({ announce: false });
-  }
-
-  if (state.wifiConnected) {
-    const pathMap = {
-      READY: "/reset",
-      RESET: "/reset",
-      START: "/start",
-      GO: "/start",
-      FINISH: "/finish",
-      STOP: "/finish",
-    };
-    const path = pathMap[command];
-    if (path) {
-      await fetchWifiState(path, { waitForResponse: command !== "START" && command !== "GO" });
-      return true;
-    }
-  }
-
-  if (state.serialConnected && await sendSerialCommand(command)) {
-    return true;
-  }
-
-  eventMarquee.textContent = "ESP 미연결 · BLE 연결 확인";
+  eventMarquee.textContent = "BLE 미연결 · LUD-COUNT 다시 연결";
   return false;
 }
 
@@ -1279,9 +1491,10 @@ function selectTeam(index) {
 
   state.activeTeamIndex = index;
   state.phase = "ready";
+  state.ballCountTeamReady = true;
   setRemainingMs(state.duration * 1000);
   startButton.disabled = false;
-  eventMarquee.textContent = `${state.teams[index].name} SELECTED · GAME START 대기`;
+  eventMarquee.textContent = `${state.teams[index].name} SELECTED · 점수 세기 버튼 준비`;
   renderGame();
   sendEspCommand("READY");
 }
@@ -1389,6 +1602,7 @@ async function resetGame(keepScreen = true) {
   state.countdownActive = false;
   state.phase = "ready";
   startButton.disabled = false;
+  state.ballCountTeamReady = false;
   state.remaining = state.duration;
   state.remainingMs = state.duration * 1000;
   state.teams = state.teams.map((team) => ({ ...team, score: 0, completed: false }));
@@ -1419,6 +1633,7 @@ function endGame() {
   if (nextIndex >= 0) {
     state.activeTeamIndex = nextIndex;
     state.phase = "ready";
+    state.ballCountTeamReady = false;
     setRemainingMs(state.duration * 1000);
     eventMarquee.textContent = `${activeTeam.name} DONE · 다음 ${state.teams[nextIndex].name} 선택됨`;
     renderGame();
@@ -1465,6 +1680,23 @@ scoreGrid.addEventListener("click", (event) => {
   const card = event.target.closest("[data-team-index]");
   if (!card) return;
   const teamIndex = Number(card.dataset.teamIndex);
+  if (teamIndex === state.activeTeamIndex && state.ballCountTeamReady) {
+    openBallCountModal(teamIndex);
+    return;
+  }
+  selectTeam(teamIndex);
+});
+
+scoreGrid.addEventListener("keydown", (event) => {
+  if (!["Enter", "Space"].includes(event.code)) return;
+  const card = event.target.closest("[data-team-index]");
+  if (!card) return;
+  event.preventDefault();
+  const teamIndex = Number(card.dataset.teamIndex);
+  if (teamIndex === state.activeTeamIndex && state.ballCountTeamReady) {
+    openBallCountModal(teamIndex);
+    return;
+  }
   selectTeam(teamIndex);
 });
 
@@ -1561,7 +1793,15 @@ recordList?.addEventListener("keydown", (event) => {
 });
 
 wifiButton.addEventListener("click", connectEspBle);
-usbButton?.addEventListener("click", connectEspUsb);
+ballCountClose?.addEventListener("click", closeBallCountModal);
+ballCountModal?.addEventListener("click", (event) => {
+  if (event.target === ballCountModal) closeBallCountModal();
+});
+ballCountConnect?.addEventListener("click", connectBallCountBle);
+ballCountStart?.addEventListener("click", startBallCounting);
+ballCountRotate?.addEventListener("click", rotateBallCounter);
+ballCountStop?.addEventListener("click", stopBallCounting);
+ballCountReset?.addEventListener("click", resetBallCounting);
 startButton.addEventListener("click", runCountdownAndStart);
 document.querySelector("#pauseButton").addEventListener("click", pauseGame);
 document.querySelector("#resetButton").addEventListener("click", () => resetGame(true));
@@ -1576,6 +1816,13 @@ window.addEventListener("keydown", (event) => {
   const targetTag = event.target?.tagName?.toLowerCase();
   const isTyping = ["input", "textarea", "select"].includes(targetTag);
   if (isTyping) return;
+  if (isBallCountModalOpen()) {
+    if (event.code === "Escape") {
+      event.preventDefault();
+      closeBallCountModal();
+    }
+    return;
+  }
   if (!settingModal.classList.contains("hidden") && event.code !== "Escape") return;
 
   const keyMap = {
@@ -1619,16 +1866,11 @@ window.addEventListener("keydown", (event) => {
 
 renderSetupLabels();
 renderScoreRecords();
-state.wifiBaseUrl = normalizeWifiBaseUrl(window.localStorage.getItem("ludballWifiIp") || directEspBaseUrl);
-if (state.wifiBaseUrl === "http://192.168.4.1" || state.wifiBaseUrl === "http://192.168.0.71") {
-  state.wifiBaseUrl = directEspBaseUrl;
-  window.localStorage.setItem("ludballWifiIp", directEspBaseUrl);
-}
+clearLegacyConnectionCache();
 setWifiStatus({
   connected: false,
-  message: "ESP BLE 연결 대기 · LUDBALL-ESP 선택",
+  message: "BLE 연결 대기 · LUD-COUNT 선택",
 });
-autoConnectEspSerial();
 
 if ("serial" in navigator) {
   navigator.serial.addEventListener("disconnect", (event) => {

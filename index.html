@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Ludball Challenge</title>
-    <link rel="stylesheet" href="./styles.css?v=20260806-latest-sound" />
+    <link rel="stylesheet" href="./styles.css?v=20260808-team-score-count-action" />
   </head>
   <body>
     <main class="app-shell">
@@ -92,7 +92,6 @@
         <div class="bottom-stage">
           <div class="event-marquee" id="eventMarquee">READY · READY · READY</div>
           <div class="stage-actions">
-            <button type="button" id="usbButton">USB 연결</button>
             <button type="button" id="wifiButton">BLE 연결</button>
             <button type="button" id="startButton">GAME START</button>
             <button type="button" id="pauseButton">PAUSE</button>
@@ -133,6 +132,48 @@
       <strong id="countdownCaption">GET READY</strong>
     </div>
 
+    <div class="modal-backdrop hidden" id="ballCountModal" role="dialog" aria-modal="true" aria-labelledby="ballCountTitle">
+      <div class="setting-modal ball-count-modal">
+        <div class="modal-head">
+          <div>
+            <p id="ballCountTitle">점수 세기</p>
+            <span class="ball-count-subtitle" id="ballCountStatus">팀 선택 후 BLE 연결</span>
+          </div>
+          <button class="modal-close" type="button" id="ballCountClose" aria-label="닫기">×</button>
+        </div>
+
+        <div class="ball-count-grid">
+          <section class="ball-count-readout" aria-live="polite">
+            <span>점수</span>
+            <strong id="ballCountValue">0</strong>
+            <em id="ballCountTeam">TEAM 1</em>
+          </section>
+
+          <section class="ball-count-panel">
+            <div class="ball-count-control-row">
+              <button type="button" id="ballCountConnect">BLE 연결</button>
+              <button type="button" id="ballCountStart">점수 세기 시작</button>
+            </div>
+            <div class="ball-count-control-row">
+              <button type="button" id="ballCountRotate">수동 회전</button>
+              <button type="button" id="ballCountStop">STOP</button>
+              <button type="button" id="ballCountReset">RESET</button>
+            </div>
+            <div class="ball-count-settings">
+              <label>
+                <span>회전 각도</span>
+                <input id="ballCountDegrees" type="number" inputmode="numeric" min="-360" max="360" step="1" value="360" />
+              </label>
+              <label>
+                <span>속도 us</span>
+                <input id="ballCountSpeed" type="number" inputmode="numeric" min="120" max="5000" step="10" value="2500" />
+              </label>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
     <div class="record-celebration hidden" id="recordCelebration" role="dialog" aria-modal="true" aria-labelledby="celebrationTitle">
       <div class="fanfare fanfare-left" aria-hidden="true"></div>
       <div class="fanfare fanfare-right" aria-hidden="true"></div>
@@ -149,6 +190,6 @@
     <audio id="bgmAudio" src="./assets/bgm.m4a" preload="auto" loop playsinline></audio>
     <audio id="scoreAudio" src="./assets/score-up.mp3" preload="auto" playsinline></audio>
     <audio id="recordAudio" src="./assets/record-cheer.mp3" preload="auto" playsinline></audio>
-    <script src="./app.js?v=20260806-latest-sound"></script>
+    <script src="./app.js?v=20260808-team-score-count-action"></script>
   </body>
 </html>
