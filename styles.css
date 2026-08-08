@@ -1093,104 +1093,180 @@ button:active {
 }
 
 .ball-count-modal {
-  width: min(900px, 94vw);
+  width: min(920px, 92vw);
+  padding: clamp(28px, 3.2vw, 44px);
+  border-color: rgba(66, 255, 210, 0.7);
+  background:
+    linear-gradient(130deg, rgba(66, 255, 210, 0.14), transparent 42%),
+    linear-gradient(180deg, rgba(10, 17, 31, 0.98), rgba(3, 7, 15, 0.96));
+  box-shadow:
+    0 0 0 1px rgba(66, 255, 210, 0.18),
+    0 24px 80px rgba(0, 0, 0, 0.56),
+    0 0 56px rgba(66, 255, 210, 0.24),
+    inset 0 0 34px rgba(255, 255, 255, 0.035);
+}
+
+.ball-count-modal .modal-head {
+  margin-bottom: clamp(22px, 2.6vw, 34px);
+}
+
+.ball-count-modal .modal-head p {
+  font-size: clamp(44px, 4.7vw, 76px);
+  line-height: 0.96;
 }
 
 .ball-count-subtitle {
   display: block;
-  margin-top: 8px;
-  color: var(--cyan);
+  width: fit-content;
+  margin-top: 14px;
+  padding: 9px 14px;
+  border: 1px solid rgba(66, 255, 210, 0.36);
+  border-radius: 999px;
+  background: rgba(66, 255, 210, 0.08);
+  color: #b8fff1;
   font-weight: 1000;
-  font-size: clamp(14px, 1.3vw, 20px);
-  text-shadow: var(--glow-cyan);
+  font-size: clamp(13px, 1.1vw, 17px);
+  line-height: 1.1;
+  text-shadow: 0 0 14px rgba(66, 255, 210, 0.54);
 }
 
 .ball-count-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 0.78fr) minmax(0, 1.22fr);
-  gap: 16px;
+  grid-template-columns: minmax(260px, 0.86fr) minmax(0, 1.14fr);
+  gap: clamp(18px, 2.4vw, 28px);
+  align-items: stretch;
 }
 
 .ball-count-readout,
 .ball-count-panel {
-  border: 1px solid rgba(95, 252, 255, 0.38);
-  border-radius: 20px;
+  border: 1px solid rgba(66, 255, 210, 0.3);
+  border-radius: 18px;
   background:
-    linear-gradient(145deg, rgba(95, 252, 255, 0.1), transparent 44%),
-    rgba(5, 12, 24, 0.82);
-  box-shadow: inset 0 0 22px rgba(95, 252, 255, 0.05), 0 0 14px rgba(95, 252, 255, 0.08);
+    linear-gradient(145deg, rgba(66, 255, 210, 0.12), transparent 48%),
+    rgba(4, 10, 20, 0.72);
+  box-shadow:
+    inset 0 0 24px rgba(66, 255, 210, 0.045),
+    0 16px 36px rgba(0, 0, 0, 0.28);
 }
 
 .ball-count-readout {
   display: grid;
   align-content: center;
   justify-items: center;
-  min-height: 310px;
-  padding: 24px;
+  min-height: 340px;
+  padding: clamp(24px, 3vw, 34px);
 }
 
 .ball-count-readout span,
 .ball-count-readout em {
-  color: var(--muted);
   font-style: normal;
   font-weight: 1000;
   line-height: 1.2;
 }
 
+.ball-count-label {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 1px solid rgba(95, 252, 255, 0.26);
+  border-radius: 999px;
+  background: rgba(95, 252, 255, 0.07);
+  color: #9fb1c8;
+  font-size: clamp(12px, 1vw, 15px);
+}
+
 .ball-count-readout strong {
   color: var(--white);
   font-family: "Arial Black", "Pretendard", system-ui, sans-serif;
-  font-size: clamp(112px, 15vw, 190px);
-  line-height: 0.9;
-  text-shadow: var(--glow-cyan);
+  font-size: clamp(116px, 13vw, 178px);
+  line-height: 0.86;
+  margin: 18px 0 12px;
+  text-shadow:
+    0 0 16px rgba(255, 255, 255, 0.34),
+    0 0 42px rgba(66, 255, 210, 0.48);
 }
 
 .ball-count-readout em {
-  margin-top: 14px;
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: rgba(66, 255, 210, 0.12);
   color: var(--cyan);
-  font-size: clamp(18px, 1.8vw, 28px);
+  font-size: clamp(20px, 2vw, 30px);
   text-shadow: var(--glow-cyan);
 }
 
 .ball-count-panel {
   display: grid;
-  align-content: start;
-  gap: 12px;
-  padding: 18px;
+  align-content: stretch;
+  gap: 14px;
+  padding: clamp(20px, 2.5vw, 28px);
 }
 
 .ball-count-control-row {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
-.ball-count-control-row:first-child {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.primary-controls {
+  min-height: 134px;
+}
+
+.secondary-controls {
+  min-height: 112px;
 }
 
 .ball-count-control-row button {
-  min-height: 72px;
-  border: 1px solid rgba(66, 255, 210, 0.56);
+  min-height: 100%;
+  border: 1px solid rgba(66, 255, 210, 0.48);
   border-radius: 16px;
-  background: rgba(7, 15, 29, 0.9);
+  background:
+    linear-gradient(180deg, rgba(66, 255, 210, 0.06), rgba(66, 255, 210, 0.015)),
+    rgba(5, 11, 21, 0.86);
   color: var(--cyan);
-  box-shadow: 0 0 14px rgba(95, 252, 255, 0.26);
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.22),
+    0 0 16px rgba(66, 255, 210, 0.14);
   cursor: pointer;
   font-weight: 1000;
+  font-size: clamp(18px, 1.55vw, 24px);
+  line-height: 1.1;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.ball-count-control-row button:hover,
+.ball-count-control-row button:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(66, 255, 210, 0.78);
+  box-shadow:
+    0 16px 30px rgba(0, 0, 0, 0.28),
+    0 0 28px rgba(66, 255, 210, 0.28);
 }
 
 .ball-count-control-row #ballCountStart {
   border-color: rgba(66, 255, 210, 0.78);
   background: linear-gradient(135deg, rgba(66, 255, 210, 0.94), rgba(44, 255, 154, 0.86));
   color: #03100e;
-  box-shadow: var(--glow-pink);
+  box-shadow:
+    0 18px 34px rgba(44, 255, 154, 0.18),
+    0 0 34px rgba(66, 255, 210, 0.42);
 }
 
 .ball-count-control-row button.is-connected {
   border-color: rgba(44, 255, 154, 0.82);
   background: rgba(44, 255, 154, 0.16);
   color: var(--green);
+}
+
+.secondary-controls #ballCountStop,
+.secondary-controls #ballCountReset {
+  color: #d9fff6;
 }
 
 .countdown-overlay {
@@ -1464,6 +1540,40 @@ button:active {
 }
 
 @media (max-width: 760px) {
+  .modal-backdrop {
+    padding: 12px;
+    place-items: start center;
+    overflow: auto;
+  }
+
+  .ball-count-modal {
+    width: calc(100vw - 24px);
+    padding: 20px;
+    border-radius: 20px;
+  }
+
+  .ball-count-modal .modal-head {
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .ball-count-modal .modal-head p {
+    font-size: clamp(34px, 13vw, 48px);
+  }
+
+  .ball-count-modal .modal-close {
+    flex: 0 0 auto;
+    width: 54px;
+    height: 54px;
+    font-size: 34px;
+  }
+
+  .ball-count-subtitle {
+    max-width: 100%;
+    font-size: 12px;
+    white-space: normal;
+  }
+
   .modal-options {
     grid-template-columns: 1fr;
   }
@@ -1479,7 +1589,16 @@ button:active {
   }
 
   .ball-count-readout {
-    min-height: 220px;
+    min-height: 300px;
+  }
+
+  .primary-controls,
+  .secondary-controls {
+    min-height: auto;
+  }
+
+  .ball-count-control-row button {
+    min-height: 96px;
   }
 
   .countdown-ring {

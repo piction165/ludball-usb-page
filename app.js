@@ -124,7 +124,6 @@ const ballCountModal = document.querySelector("#ballCountModal");
 const ballCountClose = document.querySelector("#ballCountClose");
 const ballCountConnect = document.querySelector("#ballCountConnect");
 const ballCountStart = document.querySelector("#ballCountStart");
-const ballCountRotate = document.querySelector("#ballCountRotate");
 const ballCountStop = document.querySelector("#ballCountStop");
 const ballCountReset = document.querySelector("#ballCountReset");
 const ballCountValue = document.querySelector("#ballCountValue");
@@ -814,10 +813,6 @@ async function startBallCounting() {
   await sendBallCountCommand(`SPEED ${defaultBallCountSpeed}`, `속도 ${defaultBallCountSpeed}us 설정`);
   await sendBallCountCommand("START", "IR 점수 감지 대기 중");
   await sendBallCountCommand(`ROT ${defaultBallCountDegrees}`, `${defaultBallCountDegrees}도 천천히 회전 · 점수 집계 중`);
-}
-
-async function rotateBallCounter() {
-  await sendBallCountCommand(`ROT ${defaultBallCountDegrees}`, `${defaultBallCountDegrees}도 회전`);
 }
 
 async function stopBallCounting() {
@@ -1788,7 +1783,6 @@ ballCountModal?.addEventListener("click", (event) => {
 });
 ballCountConnect?.addEventListener("click", connectBallCountBle);
 ballCountStart?.addEventListener("click", startBallCounting);
-ballCountRotate?.addEventListener("click", rotateBallCounter);
 ballCountStop?.addEventListener("click", stopBallCounting);
 ballCountReset?.addEventListener("click", resetBallCounting);
 startButton.addEventListener("click", runCountdownAndStart);
