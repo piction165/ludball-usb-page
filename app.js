@@ -577,7 +577,7 @@ function renderGame() {
         <span>${team.name}</span>
       </div>
       <div class="score-value" aria-label="${team.name} 점수">${team.score}</div>
-      <div class="team-status">${index === state.activeTeamIndex ? state.ballCountTeamReady ? "점수 세기" : "SELECTED" : team.completed ? "DONE" : "TEAM SELECT"}</div>
+      <div class="team-status">${index === state.activeTeamIndex ? "점수 세기" : team.completed ? "DONE" : "TEAM SELECT"}</div>
     `;
     scoreGrid.append(card);
   });
@@ -1680,11 +1680,7 @@ scoreGrid.addEventListener("click", (event) => {
   const card = event.target.closest("[data-team-index]");
   if (!card) return;
   const teamIndex = Number(card.dataset.teamIndex);
-  if (teamIndex === state.activeTeamIndex && state.ballCountTeamReady) {
-    openBallCountModal(teamIndex);
-    return;
-  }
-  selectTeam(teamIndex);
+  openBallCountModal(teamIndex);
 });
 
 scoreGrid.addEventListener("keydown", (event) => {
@@ -1693,11 +1689,7 @@ scoreGrid.addEventListener("keydown", (event) => {
   if (!card) return;
   event.preventDefault();
   const teamIndex = Number(card.dataset.teamIndex);
-  if (teamIndex === state.activeTeamIndex && state.ballCountTeamReady) {
-    openBallCountModal(teamIndex);
-    return;
-  }
-  selectTeam(teamIndex);
+  openBallCountModal(teamIndex);
 });
 
 podium.addEventListener("change", (event) => {
