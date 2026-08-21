@@ -55,11 +55,6 @@ const state = {
   intervalId: null,
   timerEndsAt: null,
   round: 1,
-  serialPort: null,
-  serialReader: null,
-  serialWriter: null,
-  serialConnected: false,
-  serialConnecting: false,
   bleDevice: null,
   bleServer: null,
   bleNotifyCharacteristic: null,
@@ -67,14 +62,6 @@ const state = {
   bleConnected: false,
   bleConnecting: false,
   bleBuffer: "",
-  wifiBaseUrl: "",
-  wifiConnected: false,
-  wifiChecking: false,
-  wifiPollId: null,
-  wifiPollMs: 150,
-  wifiHits: 0,
-  wifiScore: 0,
-  wifiRunning: false,
   ballCountActive: false,
   ballCountValue: 0,
   ballCountTeamReady: false,
@@ -89,10 +76,36 @@ const directEspBaseUrl = "/api";
 const bleServiceUuid = "8f7a2d80-4f3b-4e62-9d1d-3c5484e6b201";
 const bleNotifyUuid = "8f7a2d81-4f3b-4e62-9d1d-3c5484e6b201";
 const bleWriteUuid = "8f7a2d82-4f3b-4e62-9d1d-3c5484e6b201";
+const bleProfiles = [
+  {
+    label: "LUDBALL",
+    serviceUuid: bleServiceUuid,
+    notifyUuid: bleNotifyUuid,
+    writeUuid: bleWriteUuid,
+  },
+  {
+    label: "Nordic UART",
+    serviceUuid: "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
+    notifyUuid: "6e400003-b5a3-f393-e0a9-e50e24dcca9e",
+    writeUuid: "6e400002-b5a3-f393-e0a9-e50e24dcca9e",
+  },
+  {
+    label: "HM-10",
+    serviceUuid: "0000ffe0-0000-1000-8000-00805f9b34fb",
+    notifyUuid: "0000ffe1-0000-1000-8000-00805f9b34fb",
+    writeUuid: "0000ffe1-0000-1000-8000-00805f9b34fb",
+  },
+  {
+    label: "BLE UART",
+    serviceUuid: "0000fff0-0000-1000-8000-00805f9b34fb",
+    notifyUuid: "0000fff1-0000-1000-8000-00805f9b34fb",
+    writeUuid: "0000fff2-0000-1000-8000-00805f9b34fb",
+  },
+];
+const bleOptionalServices = bleProfiles.map((profile) => profile.serviceUuid);
 const remoteMainButtonLockMs = 240;
 const defaultBallCountDegrees = 360;
 const defaultBallCountSpeed = 2000;
-const legacyConnectionStorageKeys = ["ludballWifiIp"];
 
 const setupScreen = document.querySelector("#setupScreen");
 const gameScreen = document.querySelector("#gameScreen");
@@ -118,8 +131,7 @@ const countdownOverlay = document.querySelector("#countdownOverlay");
 const countdownLabel = document.querySelector("#countdownLabel");
 const countdownCaption = document.querySelector("#countdownCaption");
 const startButton = document.querySelector("#startButton");
-const wifiButton = document.querySelector("#wifiButton");
-const usbButton = document.querySelector("#usbButton");
+const bleButton = document.querySelector("#bleButton");
 const ballCountModal = document.querySelector("#ballCountModal");
 const ballCountClose = document.querySelector("#ballCountClose");
 const ballCountConnect = document.querySelector("#ballCountConnect");
@@ -133,11 +145,6 @@ const bgmAudio = document.querySelector("#bgmAudio");
 const scoreAudio = document.querySelector("#scoreAudio");
 const recordAudio = document.querySelector("#recordAudio");
 
-document.querySelectorAll("#usbButton, .stage-actions button").forEach((button) => {
-  if (button.id === "usbButton" || button.textContent.trim().includes("USB")) {
-    button.remove();
-  }
-});
 const recordAddButton = document.querySelector("#recordAddButton");
 const recordForm = document.querySelector("#recordForm");
 const recordNameInput = document.querySelector("#recordNameInput");
@@ -546,7 +553,7 @@ function buildGameFromSetup() {
     : `점수 내기 READY · ${labelFor("difficulty")} · 기록 도전`;
 }
 
-function readyGameFromSetup({ requestSerial = true } = {}) {
+function readyGameFromSetup() {
   unlockAudio();
   buildGameFromSetup();
   sendEspCommand("READY");
@@ -700,22 +707,6 @@ function updateBallCountUi(message = "") {
         : `${team?.name || "팀"} 선택됨 · BLE 연결 대기`
     );
   }
-}
-
-function clearLegacyConnectionCache() {
-  legacyConnectionStorageKeys.forEach((key) => window.localStorage.removeItem(key));
-  state.serialPort = null;
-  state.serialReader = null;
-  state.serialWriter = null;
-  state.serialConnected = false;
-  state.serialConnecting = false;
-  state.wifiBaseUrl = "";
-  state.wifiConnected = false;
-  state.wifiChecking = false;
-  state.wifiHits = 0;
-  state.wifiScore = 0;
-  window.clearInterval(state.wifiPollId);
-  state.wifiPollId = null;
 }
 
 function isBleActuallyConnected() {
@@ -1027,7 +1018,7 @@ function handleOperatorCommand(command) {
   }
 }
 
-function handleSerialLine(line) {
+function handleEspLine(line) {
   const message = line.trim().toUpperCase();
   if (!message) return;
 
@@ -1036,8 +1027,6 @@ function handleSerialLine(line) {
     if (team) {
       team.score = 0;
       team.completed = false;
-      state.wifiHits = 0;
-      state.wifiScore = 0;
       if (!state.running && !state.countdownActive) {
         state.phase = "ready";
         setRemainingMs(state.duration * 1000);
@@ -1096,58 +1085,12 @@ function handleSerialLine(line) {
   eventMarquee.textContent = `ESP · ${message}`;
 }
 
-async function readSerialPort(port) {
-  const decoder = new TextDecoderStream();
-  port.readable.pipeTo(decoder.writable).catch(() => {});
-  state.serialReader = decoder.readable.getReader();
-
-  let buffer = "";
-  while (state.serialConnected) {
-    const { value, done } = await state.serialReader.read();
-    if (done) break;
-    buffer += value;
-    const lines = buffer.split(/\r?\n/);
-    buffer = lines.pop() || "";
-    lines.forEach(handleSerialLine);
-  }
-}
-
-async function openEspPort(port) {
-  await port.open({ baudRate: 115200 });
-  state.serialPort = port;
-  state.serialConnected = true;
-  state.serialWriter = port.writable?.getWriter ? port.writable.getWriter() : null;
-  if (usbButton) {
-    usbButton.textContent = "BLE 연결";
-    usbButton.classList.remove("is-connected");
-  }
-  eventMarquee.textContent = "USB 연결 비활성화 · BLE만 사용";
-  readSerialPort(port).catch((error) => {
-    state.serialConnected = false;
-    state.serialWriter = null;
-    eventMarquee.textContent = `USB 비활성화 · ${error.message || error}`;
-  });
-}
-
-async function sendSerialCommand(command) {
-  if (!state.serialConnected || !state.serialWriter) return false;
-
-  try {
-    const data = new TextEncoder().encode(`${command}\n`);
-    await state.serialWriter.write(data);
-    return true;
-  } catch (error) {
-    eventMarquee.textContent = `ESP 명령 실패 · ${error.message || error}`;
-    return false;
-  }
-}
-
 function handleBleNotification(event) {
   const chunk = new TextDecoder().decode(event.target.value);
   state.bleBuffer += chunk;
   const lines = state.bleBuffer.split(/\r?\n/);
   state.bleBuffer = lines.pop() || "";
-  lines.forEach(handleSerialLine);
+  lines.forEach(handleEspLine);
 }
 
 function handleBleDisconnect() {
@@ -1156,12 +1099,32 @@ function handleBleDisconnect() {
   state.bleServer = null;
   state.bleNotifyCharacteristic = null;
   state.bleWriteCharacteristic = null;
-  if (wifiButton) {
-    wifiButton.textContent = "BLE 연결";
-    wifiButton.classList.remove("is-connected");
+  if (bleButton) {
+    bleButton.textContent = "BLE 연결";
+    bleButton.classList.remove("is-connected");
   }
   updateBallCountUi("BLE 연결 끊김 · 다시 연결 필요");
   eventMarquee.textContent = "BLE DISCONNECTED · 다시 연결 대기";
+}
+
+async function getBleProfileConnection(server) {
+  const errors = [];
+
+  for (const profile of bleProfiles) {
+    try {
+      const service = await server.getPrimaryService(profile.serviceUuid);
+      const notifyCharacteristic = await service.getCharacteristic(profile.notifyUuid);
+      const writeCharacteristic = profile.writeUuid === profile.notifyUuid
+        ? notifyCharacteristic
+        : await service.getCharacteristic(profile.writeUuid);
+
+      return { profile, notifyCharacteristic, writeCharacteristic };
+    } catch (error) {
+      errors.push(`${profile.label}: ${error.message || error}`);
+    }
+  }
+
+  throw new Error(`지원 BLE 서비스 없음 (${errors.join(" / ")})`);
 }
 
 async function connectEspBle() {
@@ -1175,21 +1138,21 @@ async function connectEspBle() {
   if (state.bleConnecting) return false;
 
   state.bleConnecting = true;
-  if (wifiButton) wifiButton.textContent = "BLE 연결 중";
+  if (bleButton) bleButton.textContent = "BLE 연결 중";
 
   try {
     const device = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
-      optionalServices: [bleServiceUuid],
+      optionalServices: bleOptionalServices,
     });
     device.addEventListener("gattserverdisconnected", handleBleDisconnect);
     const server = await device.gatt.connect();
-    const service = await server.getPrimaryService(bleServiceUuid);
-    const notifyCharacteristic = await service.getCharacteristic(bleNotifyUuid);
-    const writeCharacteristic = await service.getCharacteristic(bleWriteUuid);
+    const { profile, notifyCharacteristic, writeCharacteristic } = await getBleProfileConnection(server);
 
-    await notifyCharacteristic.startNotifications();
-    notifyCharacteristic.addEventListener("characteristicvaluechanged", handleBleNotification);
+    if (notifyCharacteristic.properties.notify || notifyCharacteristic.properties.indicate) {
+      await notifyCharacteristic.startNotifications();
+      notifyCharacteristic.addEventListener("characteristicvaluechanged", handleBleNotification);
+    }
 
     state.bleDevice = device;
     state.bleServer = server;
@@ -1197,20 +1160,20 @@ async function connectEspBle() {
     state.bleWriteCharacteristic = writeCharacteristic;
     state.bleConnected = true;
     state.bleBuffer = "";
-    if (wifiButton) {
-      wifiButton.textContent = "BLE 연결됨";
-      wifiButton.classList.add("is-connected");
+    if (bleButton) {
+      bleButton.textContent = "BLE 연결됨";
+      bleButton.classList.add("is-connected");
     }
-    updateBallCountUi(`BLE CONNECTED · ${device.name || "LUD-COUNT"}`);
-    eventMarquee.textContent = "BLE CONNECTED · ESP 버튼 대기";
+    updateBallCountUi(`BLE CONNECTED · ${device.name || profile.label}`);
+    eventMarquee.textContent = `BLE CONNECTED · ${profile.label}`;
     await sendBleCommand("READY");
     return true;
   } catch (error) {
     state.bleConnected = false;
     eventMarquee.textContent = `BLE 연결 실패 · ${error.message || error}`;
-    if (wifiButton) {
-      wifiButton.textContent = "BLE 연결";
-      wifiButton.classList.remove("is-connected");
+    if (bleButton) {
+      bleButton.textContent = "BLE 연결";
+      bleButton.classList.remove("is-connected");
     }
     return false;
   } finally {
@@ -1227,8 +1190,11 @@ async function sendBleCommand(command) {
     const data = new TextEncoder().encode(`${command}\n`);
     if (state.bleWriteCharacteristic.properties.writeWithoutResponse) {
       await state.bleWriteCharacteristic.writeValueWithoutResponse(data);
-    } else {
+    } else if (state.bleWriteCharacteristic.properties.write) {
       await state.bleWriteCharacteristic.writeValue(data);
+    } else {
+      eventMarquee.textContent = "BLE 쓰기 미지원 · 바구니 펌웨어 확인";
+      return false;
     }
     return true;
   } catch (error) {
@@ -1238,206 +1204,17 @@ async function sendBleCommand(command) {
   }
 }
 
-async function autoConnectEspSerial() {
-  if (!("serial" in navigator)) {
-    eventMarquee.textContent = "WEB SERIAL 미지원 · CHROME/EDGE 필요";
-    return false;
-  }
-
-  if (state.serialConnected || state.serialConnecting) return state.serialConnected;
-  state.serialConnecting = true;
-
-  try {
-    const rememberedPorts = await navigator.serial.getPorts();
-    const port = rememberedPorts[0];
-
-    if (!port) {
-      eventMarquee.textContent = "ESP 무선 모드 · IP 연결 대기";
-      return false;
-    }
-
-    await openEspPort(port);
-    return true;
-  } catch (error) {
-    state.serialConnected = false;
-    eventMarquee.textContent = `ESP 자동 연결 실패 · ${error.message || error}`;
-    return false;
-  } finally {
-    state.serialConnecting = false;
-  }
-}
-
-async function connectEspUsb() {
-  if (!("serial" in navigator)) {
-    eventMarquee.textContent = "WEB SERIAL 미지원 · CHROME/EDGE 필요";
-    return false;
-  }
-
-  if (state.serialConnected) return true;
-
-  try {
-    const rememberedPorts = await navigator.serial.getPorts();
-    const port = rememberedPorts[0] || await navigator.serial.requestPort();
-    await openEspPort(port);
-    return true;
-  } catch (error) {
-    if (usbButton) {
-      usbButton.textContent = "USB 연결";
-      usbButton.classList.remove("is-connected");
-    }
-    eventMarquee.textContent = `USB 연결 실패 · ${error.message || error}`;
-    return false;
-  }
-}
-
-function setWifiStatus({ connected, checking = false, message = "" } = {}) {
-  state.wifiConnected = connected;
-  state.wifiChecking = checking;
-  wifiButton.classList.toggle("is-connected", isBleActuallyConnected());
-  wifiButton.classList.toggle("is-checking", checking);
+function setBleStatus({ checking = false, message = "" } = {}) {
+  bleButton?.classList.toggle("is-connected", isBleActuallyConnected());
+  bleButton?.classList.toggle("is-checking", checking);
 
   if (checking) {
-    wifiButton.textContent = "BLE 확인";
+    if (bleButton) bleButton.textContent = "BLE 확인";
     return;
   }
 
-  wifiButton.textContent = isBleActuallyConnected() ? "BLE 연결됨" : "BLE 연결";
+  if (bleButton) bleButton.textContent = isBleActuallyConnected() ? "BLE 연결됨" : "BLE 연결";
   if (message) eventMarquee.textContent = message;
-}
-
-function normalizeWifiBaseUrl(value) {
-  const trimmed = value.trim().replace(/\/+$/, "");
-  if (!trimmed) return "";
-  if (trimmed === "/api") return trimmed;
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `http://${trimmed}`;
-}
-
-function wifiUrlFor(path = "/score") {
-  if (!state.wifiBaseUrl || state.wifiBaseUrl === "/api") {
-    if (path === "/score") return cloudScoreUrl;
-    const action = path.replace(/^\//, "").toUpperCase();
-    return `${cloudScoreUrl}?action=${encodeURIComponent(action)}`;
-  }
-  return `${state.wifiBaseUrl}${path}`;
-}
-
-async function fetchWifiState(path = "/score", { waitForResponse = true } = {}) {
-  const request = fetch(wifiUrlFor(path), {
-    cache: "no-store",
-    mode: "cors",
-  });
-
-  if (!waitForResponse) {
-    request.catch(() => {
-      setWifiStatus({ connected: false, message: "ESP 끊김 · 전원/IP/Wi-Fi 확인" });
-    });
-    return null;
-  }
-
-  const response = await request;
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
-}
-
-function applyWifiScore(payload) {
-  if (!payload || typeof payload.score !== "number") return;
-  if (typeof payload.running === "boolean" && payload.running !== state.wifiRunning) {
-    state.wifiRunning = payload.running;
-    if (payload.running && !state.running && !state.countdownActive) {
-      if (!state.teams.length || !setupScreen.classList.contains("hidden")) {
-        buildGameFromSetup();
-      }
-      startGame();
-    } else if (!payload.running && state.running) {
-      pauseGame();
-    }
-  }
-
-  const team = state.teams[state.activeTeamIndex];
-  if (!team) return;
-
-  let changed = false;
-  let soundPlayedForHit = false;
-  if (typeof payload.hits === "number" && payload.hits !== state.wifiHits) {
-    const gainedHits = payload.hits > state.wifiHits ? payload.hits - state.wifiHits : 0;
-    state.wifiHits = payload.hits;
-    if (gainedHits > 0) {
-      addScore(state.activeTeamIndex, gainedHits);
-      soundPlayedForHit = true;
-      changed = true;
-      eventMarquee.textContent = state.running
-        ? `WIFI SENSOR · ${team.name} +${gainedHits}`
-        : "WIFI SENSOR · 효과음 테스트";
-    }
-  }
-
-  if (payload.score !== state.wifiScore) {
-    const gainedScore = payload.score > state.wifiScore ? payload.score - state.wifiScore : 0;
-    state.wifiScore = payload.score;
-    if (gainedScore > 0 && !soundPlayedForHit) {
-      addScore(state.activeTeamIndex, gainedScore);
-      changed = true;
-      eventMarquee.textContent = `WIFI SCORE · ${team.name} +${gainedScore}`;
-    }
-  }
-
-  if (changed) {
-    renderGame();
-  }
-
-}
-
-function startWifiPolling() {
-  return;
-  window.clearInterval(state.wifiPollId);
-  state.wifiPollId = window.setInterval(async () => {
-    if (!state.wifiBaseUrl || state.wifiChecking) return;
-    try {
-      const payload = await fetchWifiState("/score");
-      if (!state.wifiConnected) {
-        setWifiStatus({ connected: false, message: "Wi-Fi 연결 비활성화 · BLE만 사용" });
-      }
-      applyWifiScore(payload);
-    } catch (error) {
-      setWifiStatus({ connected: false, message: `ESP 끊김 · ${error.message || error}` });
-    }
-  }, state.wifiPollMs);
-}
-
-async function checkEspWifi({ announce = true } = {}) {
-  state.wifiBaseUrl = "";
-  setWifiStatus({
-    connected: false,
-    checking: false,
-    message: announce ? "Wi-Fi 연결 비활성화 · BLE만 사용" : "",
-  });
-  return false;
-
-  if (!state.wifiBaseUrl) return false;
-  setWifiStatus({ connected: false, checking: true });
-
-  try {
-    const payload = await fetchWifiState("/score");
-    setWifiStatus({
-      connected: false,
-      message: announce ? "Wi-Fi 연결 비활성화 · BLE만 사용" : "",
-    });
-    applyWifiScore(payload);
-    startWifiPolling();
-    return true;
-  } catch (error) {
-    setWifiStatus({
-      connected: false,
-      message: announce ? `ESP 연결 실패 · ${error.message || error}` : "",
-    });
-    return false;
-  }
-}
-
-async function connectEspWifi() {
-  unlockAudio();
-  eventMarquee.textContent = "Wi-Fi/USB 연결 비활성화 · BLE만 사용";
-  return false;
 }
 
 async function sendEspCommand(command) {
@@ -1533,8 +1310,6 @@ async function runCountdownAndStart() {
 
   activeTeam.score = 0;
   activeTeam.completed = false;
-  state.wifiHits = 0;
-  state.wifiScore = 0;
   setRemainingMs(state.duration * 1000);
   renderGame();
   state.countdownActive = true;
@@ -1599,8 +1374,6 @@ async function resetGame(keepScreen = true) {
   state.remainingMs = state.duration * 1000;
   state.teams = state.teams.map((team) => ({ ...team, score: 0, completed: false }));
   state.activeTeamIndex = 0;
-  state.wifiHits = 0;
-  state.wifiScore = 0;
   eventMarquee.textContent = "RESET · READY";
   renderGame();
   if (keepScreen) showScreen(gameScreen);
@@ -1776,7 +1549,7 @@ recordList?.addEventListener("keydown", (event) => {
   setActiveRecord(row.dataset.recordId);
 });
 
-wifiButton.addEventListener("click", connectEspBle);
+bleButton?.addEventListener("click", connectEspBle);
 ballCountClose?.addEventListener("click", closeBallCountModal);
 ballCountModal?.addEventListener("click", (event) => {
   if (event.target === ballCountModal) closeBallCountModal();
@@ -1849,23 +1622,6 @@ window.addEventListener("keydown", (event) => {
 
 renderSetupLabels();
 renderScoreRecords();
-clearLegacyConnectionCache();
-setWifiStatus({
-  connected: false,
+setBleStatus({
   message: "BLE 연결 대기 · LUD-COUNT 선택",
 });
-
-if ("serial" in navigator) {
-  navigator.serial.addEventListener("disconnect", (event) => {
-    if (event.target === state.serialPort) {
-      state.serialConnected = false;
-      state.serialPort = null;
-      state.serialWriter = null;
-      if (usbButton) {
-        usbButton.textContent = "USB 연결";
-        usbButton.classList.remove("is-connected");
-      }
-      eventMarquee.textContent = "ESP DISCONNECTED · 자동 재연결 대기";
-    }
-  });
-}
