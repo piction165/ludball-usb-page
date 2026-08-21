@@ -62,6 +62,9 @@ const state = {
   bleConnected: false,
   bleConnecting: false,
   bleBuffer: "",
+  bleProfileLabel: "",
+  bleConnectedAt: 0,
+  lastBleRxAt: 0,
   ballCountActive: false,
   ballCountValue: 0,
   ballCountTeamReady: false,
@@ -69,6 +72,8 @@ const state = {
   countdownActive: false,
   remoteMainButtonLatched: false,
   remoteMainButtonReleaseTimer: null,
+  lastRemoteScorePulseAt: 0,
+  pendingRemoteScorePulseTimer: null,
 };
 
 const cloudScoreUrl = "https://ludball-usb-page.vercel.app/api/score";
@@ -101,9 +106,23 @@ const bleProfiles = [
     notifyUuid: "0000fff1-0000-1000-8000-00805f9b34fb",
     writeUuid: "0000fff2-0000-1000-8000-00805f9b34fb",
   },
+  {
+    label: "BLE UART FFF1",
+    serviceUuid: "0000fff0-0000-1000-8000-00805f9b34fb",
+    notifyUuid: "0000fff1-0000-1000-8000-00805f9b34fb",
+    writeUuid: "0000fff1-0000-1000-8000-00805f9b34fb",
+  },
+  {
+    label: "JDY UART",
+    serviceUuid: "0000ffe5-0000-1000-8000-00805f9b34fb",
+    notifyUuid: "0000ffe4-0000-1000-8000-00805f9b34fb",
+    writeUuid: "0000ffe9-0000-1000-8000-00805f9b34fb",
+  },
 ];
 const bleOptionalServices = bleProfiles.map((profile) => profile.serviceUuid);
 const remoteMainButtonLockMs = 240;
+const remoteScorePulseLockMs = 90;
+const remoteScoreFallbackMs = 180;
 const defaultBallCountDegrees = 360;
 const defaultBallCountSpeed = 2000;
 
@@ -694,6 +713,7 @@ function suspendMainGameForBallCount() {
 function updateBallCountUi(message = "") {
   const team = state.teams[state.activeTeamIndex];
   const bleLive = isBleActuallyConnected();
+  const displayMessage = sanitizeEspDisplayMessage(message);
   if (ballCountValue) ballCountValue.textContent = String(state.ballCountValue);
   if (ballCountTeam) ballCountTeam.textContent = team?.name || "TEAM";
   if (ballCountConnect) {
@@ -701,12 +721,28 @@ function updateBallCountUi(message = "") {
     ballCountConnect.classList.toggle("is-connected", bleLive);
   }
   if (ballCountStatus) {
-    ballCountStatus.textContent = message || (
+    ballCountStatus.textContent = displayMessage || (
       bleLive
         ? `${team?.name || "팀"} 점수 세기 연결됨`
         : `${team?.name || "팀"} 선택됨 · BLE 연결 대기`
     );
   }
+}
+
+function isEspStatusText(value) {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  return /^(?:ESP\s*[•·-]\s*)?STATUS\s*:/i.test(text) ||
+    /"?(?:COUNT|IR|BITS|ENABLED|RUNNING|MOTION|REMAINING)"?\s*[:=]/i.test(text);
+}
+
+function sanitizeEspDisplayMessage(message) {
+  return isEspStatusText(message) ? "" : String(message || "");
+}
+
+function setEventMessage(message) {
+  const displayMessage = sanitizeEspDisplayMessage(message);
+  if (displayMessage && eventMarquee) eventMarquee.textContent = displayMessage;
 }
 
 function isBleActuallyConnected() {
@@ -762,6 +798,9 @@ async function postBallCountToCloud(score) {
 function applyBallCountScore(nextScore) {
   const normalizedScore = Math.max(0, Math.min(999, Math.trunc(Number(nextScore) || 0)));
   const previousScore = state.ballCountValue;
+  if (normalizedScore < previousScore) return;
+  if (normalizedScore === previousScore) return;
+
   state.ballCountValue = normalizedScore;
   const team = state.teams[state.activeTeamIndex];
   if (team) {
@@ -769,8 +808,77 @@ function applyBallCountScore(nextScore) {
     if (normalizedScore > previousScore) playScoreBurst(Math.min(6, normalizedScore - previousScore));
     renderGame();
   }
-  updateBallCountUi(normalizedScore > previousScore ? "IR 감지됨 · 점수 반영" : undefined);
+  updateBallCountUi(normalizedScore > previousScore ? "IR 감지됨 · 점수 반영" : "점수 리셋");
   void postBallCountToCloud(normalizedScore);
+}
+
+function applyRemoteScorePulse(source = "SENSOR") {
+  const team = state.teams[state.activeTeamIndex];
+  if (!team) return;
+
+  const now = performance.now();
+  if (now - state.lastRemoteScorePulseAt < remoteScorePulseLockMs) {
+    return;
+  }
+  state.lastRemoteScorePulseAt = now;
+
+  if (isBallCountModalOpen() || state.ballCountActive) {
+    applyBallCountScore(state.ballCountValue + 1);
+    updateBallCountUi(`IR 감지됨 · ${source}`);
+    return;
+  }
+
+  team.score = Math.max(0, Math.min(999, team.score + 1));
+  playScoreBurst(1);
+  eventMarquee.textContent = `ESP GOAL · ${team.name} +1`;
+  renderGame();
+}
+
+function clearPendingRemoteScorePulse() {
+  if (!state.pendingRemoteScorePulseTimer) return;
+  window.clearTimeout(state.pendingRemoteScorePulseTimer);
+  state.pendingRemoteScorePulseTimer = null;
+}
+
+function queueRemoteScorePulseFallback(source = "SENSOR") {
+  clearPendingRemoteScorePulse();
+  state.pendingRemoteScorePulseTimer = window.setTimeout(() => {
+    state.pendingRemoteScorePulseTimer = null;
+    applyRemoteScorePulse(source);
+  }, remoteScoreFallbackMs);
+}
+
+function noteSensorSignal(source = "SENSOR", { fallback = true, quiet = false } = {}) {
+  if (isBallCountModalOpen() || state.ballCountActive) {
+    updateBallCountUi(`IR 감지됨 · ${source} · 점수 수신 대기`);
+  }
+  if (!quiet) {
+    eventMarquee.textContent = `ESP SENSOR · ${source} · SCORE 대기`;
+  }
+  if (fallback) queueRemoteScorePulseFallback(source);
+}
+
+function applyIncomingScoreValue(nextScore, { silent = false } = {}) {
+  const team = state.teams[state.activeTeamIndex];
+  if (!team) return;
+
+  clearPendingRemoteScorePulse();
+
+  if (isBallCountModalOpen() || state.ballCountActive) {
+    applyBallCountScore(nextScore);
+    return;
+  }
+
+  const normalizedScore = Math.max(0, Math.min(999, Math.trunc(Number(nextScore) || 0)));
+  if (normalizedScore < team.score) return;
+  const gained = Math.max(0, normalizedScore - team.score);
+  if (gained === 0) return;
+  if (gained > 0) playScoreBurst(gained);
+  team.score = normalizedScore;
+  if (!silent) {
+    eventMarquee.textContent = `ESP SCORE · ${team.name} ${team.score}`;
+  }
+  renderGame();
 }
 
 async function connectBallCountBle() {
@@ -803,6 +911,9 @@ async function startBallCounting() {
   await sendBallCountCommand("RESET", "점수 리셋");
   await sendBallCountCommand(`SPEED ${defaultBallCountSpeed}`, `속도 ${defaultBallCountSpeed}us 설정`);
   await sendBallCountCommand("START", "IR 점수 감지 대기 중");
+  void sendEspCommand("GO");
+  void sendEspCommand("LED_ON");
+  void sendEspCommand("LIGHT_ON");
   await sendBallCountCommand(`ROT ${defaultBallCountDegrees}`, `${defaultBallCountDegrees}도 천천히 회전 · 점수 집계 중`);
 }
 
@@ -946,7 +1057,6 @@ function handleOperatorCommand(command) {
   switch (normalized) {
     case "READY":
       if (isBallCountModalOpen() || state.ballCountActive) {
-        updateBallCountUi("점수 세기 준비 완료");
         return true;
       }
       if (!setupScreen.classList.contains("hidden")) readyGameFromSetup();
@@ -1019,8 +1129,23 @@ function handleOperatorCommand(command) {
 }
 
 function handleEspLine(line) {
-  const message = line.trim().toUpperCase();
+  const rawLine = String(line || "").trim();
+  const message = rawLine.toUpperCase();
   if (!message) return;
+
+  if (message.startsWith("ACK:")) {
+    const ack = message.slice(4).trim();
+    if (ack && !["READY", "START", "GO", "FINISH"].includes(ack)) {
+      eventMarquee.textContent = `ESP ACK · ${ack.slice(0, 24)}`;
+    }
+    return;
+  }
+
+  if (message.startsWith("STATUS:")) {
+    handleBleLooseMessage(rawLine.slice(rawLine.indexOf(":") + 1));
+    setEventMessage("BLE 연결됨 · 센서 데이터 수신 대기");
+    return;
+  }
 
   if (["RESET_CURRENT_TEAM", "RESET_TEAM", "TEAM_RESET"].includes(message)) {
     const team = state.teams[state.activeTeamIndex];
@@ -1043,62 +1168,139 @@ function handleEspLine(line) {
 
   const scoreMatch = message.match(/^SCORE:(\d+)$/);
   if (scoreMatch) {
-    const team = state.teams[state.activeTeamIndex];
-    if (team) {
-      const nextScore = Number(scoreMatch[1]);
-      if (isBallCountModalOpen() || state.ballCountActive) {
-        applyBallCountScore(nextScore);
-      } else {
-        const gained = Math.max(0, nextScore - team.score);
-        if (gained > 0) playScoreBurst(gained);
-        team.score = nextScore;
-        eventMarquee.textContent = `ESP SCORE · ${team.name} ${team.score}`;
-        renderGame();
-      }
-    }
+    applyIncomingScoreValue(Number(scoreMatch[1]));
     return;
   }
 
-  if (message.startsWith("HIT:")) {
-    updateBallCountUi("IR 센서 감지 · 점수 수신 대기");
-    eventMarquee.textContent = `ESP GOAL · SENSOR ${message.slice(4)}`;
+  if (/^[+]?\s*1$/.test(message)) {
+    applyRemoteScorePulse("RAW 1");
     return;
   }
 
-  if (message.startsWith("SCORE_PLUS") || message.startsWith("SENSOR_ON")) {
-    eventMarquee.textContent = "ESP SENSOR · 감지됨";
-    playScoreBurst(1);
+  if (/^\d{1,3}$/.test(message)) {
+    applyIncomingScoreValue(Number(message));
+    return;
+  }
+
+  const hitMatch = message.match(/^(?:HIT|GOAL|DETECT)(?::|\s+)?(.+)?$/);
+  if (hitMatch) {
+    noteSensorSignal(hitMatch[1] || "SENSOR");
+    return;
+  }
+
+  if (message.startsWith("SCORE_PLUS")) {
+    noteSensorSignal(message.split(/\s+/)[1] || "SCORE_PLUS");
+    return;
+  }
+
+  if (message.startsWith("SENSOR_ON") || message.startsWith("IR_ON")) {
+    noteSensorSignal(message.split(/\s+/)[1] || "SENSOR", { fallback: false, quiet: true });
     return;
   }
 
   if (["TEAM1", "TEAM1+1", "BOOT", "GOAL:1"].includes(message)) {
-    if (state.running) {
-      addScore(state.activeTeamIndex, 1);
-      eventMarquee.textContent = `ESP GOAL · ${state.teams[state.activeTeamIndex]?.name || "TEAM"} +1`;
-    } else {
-      playScoreBurst(1);
-      eventMarquee.textContent = "ESP SENSOR · 효과음 테스트";
-    }
+    applyRemoteScorePulse(message);
     return;
   }
+}
 
-  eventMarquee.textContent = `ESP · ${message}`;
+function handleBleLooseMessage(rawText) {
+  const rawMessage = String(rawText || "").trim();
+  if (!rawMessage) return false;
+
+  const statusPrefixMatch = rawMessage.match(/^STATUS\s*:\s*(.+)$/i);
+  if (statusPrefixMatch) {
+    return handleBleLooseMessage(statusPrefixMatch[1]);
+  }
+
+  try {
+    const parsed = JSON.parse(rawMessage);
+    const isStatusPayload = (
+      parsed.bits !== undefined ||
+      parsed.enabled !== undefined ||
+      parsed.running !== undefined ||
+      parsed.motion !== undefined ||
+      parsed.remaining !== undefined ||
+      parsed.ir !== undefined ||
+      parsed.count !== undefined
+    );
+    const score = parsed.score ?? parsed.count ?? parsed.hits;
+    if (score !== undefined && Number.isFinite(Number(score))) {
+      applyIncomingScoreValue(Number(score), { silent: isStatusPayload });
+      return true;
+    }
+    if (isStatusPayload) return true;
+    const eventName = String(parsed.event || parsed.type || parsed.status || "").toUpperCase();
+    if (/HIT|GOAL|DETECT|SCORE_PLUS/.test(eventName)) {
+      noteSensorSignal(eventName);
+      return true;
+    }
+  } catch (error) {
+  }
+
+  const normalized = rawMessage.toUpperCase();
+  if (isEspStatusText(normalized) && !/(?:HIT|GOAL|DETECT|SCORE_PLUS|TEAM1\+1|SENSOR_ON|IR_ON)/.test(normalized)) {
+    return true;
+  }
+
+  const scoreMatch = normalized.match(/(?:^|[^A-Z])(?:SCORE|COUNT|HITS?)\s*[:= ]\s*(\d{1,3})(?:\D|$)/);
+  if (scoreMatch) {
+    const isStatusText = /STATUS|BITS|ENABLED|RUNNING|MOTION|REMAINING/.test(normalized);
+    applyIncomingScoreValue(Number(scoreMatch[1]), { silent: isStatusText });
+    return true;
+  }
+
+  if (/(?:HIT|GOAL|DETECT|SCORE_PLUS|TEAM1\+1)/.test(normalized)) {
+    noteSensorSignal(normalized.slice(0, 24));
+    return true;
+  }
+
+  if (/(?:SENSOR_ON|IR_ON)/.test(normalized)) {
+    noteSensorSignal(normalized.slice(0, 24), { fallback: false, quiet: true });
+    return true;
+  }
+
+  if (/^[+]?\s*1$/.test(normalized)) {
+    applyRemoteScorePulse("RAW 1");
+    return true;
+  }
+
+  const numberOnlyMatch = normalized.match(/^\d{1,3}$/);
+  if (numberOnlyMatch) {
+    applyIncomingScoreValue(Number(numberOnlyMatch[0]));
+    return true;
+  }
+
+  return false;
 }
 
 function handleBleNotification(event) {
   const chunk = new TextDecoder().decode(event.target.value);
+  state.lastBleRxAt = Date.now();
   state.bleBuffer += chunk;
   const lines = state.bleBuffer.split(/\r?\n/);
   state.bleBuffer = lines.pop() || "";
   lines.forEach(handleEspLine);
+  if (state.bleBuffer.length > 160) {
+    state.bleBuffer = state.bleBuffer.slice(-80);
+  }
+
+  const bufferedMessage = state.bleBuffer.trim();
+  if (handleBleLooseMessage(bufferedMessage)) {
+    state.bleBuffer = "";
+  }
 }
 
 function handleBleDisconnect() {
+  clearPendingRemoteScorePulse();
   state.bleConnected = false;
   state.bleDevice = null;
   state.bleServer = null;
   state.bleNotifyCharacteristic = null;
   state.bleWriteCharacteristic = null;
+  state.bleProfileLabel = "";
+  state.bleConnectedAt = 0;
+  state.lastBleRxAt = 0;
   if (bleButton) {
     bleButton.textContent = "BLE 연결";
     bleButton.classList.remove("is-connected");
@@ -1113,10 +1315,33 @@ async function getBleProfileConnection(server) {
   for (const profile of bleProfiles) {
     try {
       const service = await server.getPrimaryService(profile.serviceUuid);
-      const notifyCharacteristic = await service.getCharacteristic(profile.notifyUuid);
-      const writeCharacteristic = profile.writeUuid === profile.notifyUuid
-        ? notifyCharacteristic
-        : await service.getCharacteristic(profile.writeUuid);
+      let notifyCharacteristic = null;
+      let writeCharacteristic = null;
+
+      try {
+        notifyCharacteristic = await service.getCharacteristic(profile.notifyUuid);
+        writeCharacteristic = profile.writeUuid === profile.notifyUuid
+          ? notifyCharacteristic
+          : await service.getCharacteristic(profile.writeUuid);
+      } catch (error) {
+        const characteristics = await service.getCharacteristics();
+        notifyCharacteristic = characteristics.find((characteristic) => (
+          characteristic.properties.notify ||
+          characteristic.properties.indicate
+        ));
+        writeCharacteristic = characteristics.find((characteristic) => (
+          characteristic.properties.writeWithoutResponse ||
+          characteristic.properties.write
+        ));
+      }
+
+      if (!notifyCharacteristic && !writeCharacteristic) {
+        throw new Error("notify/write characteristic 없음");
+      }
+
+      if (!writeCharacteristic) {
+        throw new Error("write characteristic 없음");
+      }
 
       return { profile, notifyCharacteristic, writeCharacteristic };
     } catch (error) {
@@ -1149,7 +1374,7 @@ async function connectEspBle() {
     const server = await device.gatt.connect();
     const { profile, notifyCharacteristic, writeCharacteristic } = await getBleProfileConnection(server);
 
-    if (notifyCharacteristic.properties.notify || notifyCharacteristic.properties.indicate) {
+    if (notifyCharacteristic && (notifyCharacteristic.properties.notify || notifyCharacteristic.properties.indicate)) {
       await notifyCharacteristic.startNotifications();
       notifyCharacteristic.addEventListener("characteristicvaluechanged", handleBleNotification);
     }
@@ -1160,6 +1385,9 @@ async function connectEspBle() {
     state.bleWriteCharacteristic = writeCharacteristic;
     state.bleConnected = true;
     state.bleBuffer = "";
+    state.bleProfileLabel = profile.label;
+    state.bleConnectedAt = Date.now();
+    state.lastBleRxAt = 0;
     if (bleButton) {
       bleButton.textContent = "BLE 연결됨";
       bleButton.classList.add("is-connected");
@@ -1167,6 +1395,12 @@ async function connectEspBle() {
     updateBallCountUi(`BLE CONNECTED · ${device.name || profile.label}`);
     eventMarquee.textContent = `BLE CONNECTED · ${profile.label}`;
     await sendBleCommand("READY");
+    window.setTimeout(() => {
+      if (!isBleActuallyConnected()) return;
+      if (state.lastBleRxAt >= state.bleConnectedAt) return;
+      updateBallCountUi("BLE 연결됨 · 바구니 데이터 없음");
+      eventMarquee.textContent = "BLE 연결됨 · 센서 데이터 수신 대기";
+    }, 1600);
     return true;
   } catch (error) {
     state.bleConnected = false;
@@ -1188,9 +1422,17 @@ async function sendBleCommand(command) {
   }
   try {
     const data = new TextEncoder().encode(`${command}\n`);
-    if (state.bleWriteCharacteristic.properties.writeWithoutResponse) {
-      await state.bleWriteCharacteristic.writeValueWithoutResponse(data);
-    } else if (state.bleWriteCharacteristic.properties.write) {
+    const canWriteWithoutResponse = state.bleWriteCharacteristic.properties.writeWithoutResponse;
+    const canWrite = state.bleWriteCharacteristic.properties.write;
+
+    if (canWriteWithoutResponse) {
+      try {
+        await state.bleWriteCharacteristic.writeValueWithoutResponse(data);
+      } catch (error) {
+        if (!canWrite) throw error;
+        await state.bleWriteCharacteristic.writeValue(data);
+      }
+    } else if (canWrite) {
       await state.bleWriteCharacteristic.writeValue(data);
     } else {
       eventMarquee.textContent = "BLE 쓰기 미지원 · 바구니 펌웨어 확인";
@@ -1346,6 +1588,9 @@ function startGame() {
   eventMarquee.textContent = state.gameMode === "versus"
       ? `${activeTeam.name} START · 2명씩 대결`
       : `${activeTeam.name} START · ${labelFor("difficulty")} 기록 도전`;
+  void sendEspCommand("START");
+  void sendEspCommand("GO");
+  void sendEspCommand("LED_ON");
   updateFeverState();
   ensureTimerLoop();
 }
@@ -1359,10 +1604,12 @@ function pauseGame() {
   if (state.phase === "running") state.phase = "paused";
   stopTimer();
   eventMarquee.textContent = "PAUSED · 시간 정지";
+  void sendEspCommand("FINISH");
   updateFeverState();
 }
 
 async function resetGame(keepScreen = true) {
+  clearPendingRemoteScorePulse();
   pauseGame();
   stopTimer();
   hideCountdown();
