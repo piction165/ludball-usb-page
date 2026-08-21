@@ -596,13 +596,13 @@ function renderGame() {
     card.dataset.teamIndex = String(index);
     card.tabIndex = 0;
     card.setAttribute("role", "button");
-    card.setAttribute("aria-label", `${team.name} 점수 세기 열기`);
+    card.setAttribute("aria-label", `${team.name} 선택`);
     card.innerHTML = `
       <div class="team-name">
         <span>${team.name}</span>
       </div>
       <div class="score-value" aria-label="${team.name} 점수">${team.score}</div>
-      <div class="team-status">${index === state.activeTeamIndex ? "점수 세기" : team.completed ? "DONE" : "TEAM SELECT"}</div>
+      <div class="team-status">${index === state.activeTeamIndex ? "ACTIVE" : team.completed ? "DONE" : "TEAM SELECT"}</div>
     `;
     scoreGrid.append(card);
   });
@@ -1517,12 +1517,11 @@ function selectTeam(index) {
 
   state.activeTeamIndex = index;
   state.phase = "ready";
-  state.ballCountTeamReady = true;
+  state.ballCountTeamReady = false;
   setRemainingMs(state.duration * 1000);
   startButton.disabled = false;
-  eventMarquee.textContent = `${state.teams[index].name} SELECTED · 점수 세기 버튼 준비`;
+  eventMarquee.textContent = `${state.teams[index].name} SELECTED`;
   renderGame();
-  sendEspCommand("READY");
 }
 
 function hideCountdown() {
@@ -1706,7 +1705,7 @@ scoreGrid.addEventListener("click", (event) => {
   const card = event.target.closest("[data-team-index]");
   if (!card) return;
   const teamIndex = Number(card.dataset.teamIndex);
-  openBallCountModal(teamIndex);
+  selectTeam(teamIndex);
 });
 
 scoreGrid.addEventListener("keydown", (event) => {
@@ -1715,7 +1714,7 @@ scoreGrid.addEventListener("keydown", (event) => {
   if (!card) return;
   event.preventDefault();
   const teamIndex = Number(card.dataset.teamIndex);
-  openBallCountModal(teamIndex);
+  selectTeam(teamIndex);
 });
 
 podium.addEventListener("change", (event) => {

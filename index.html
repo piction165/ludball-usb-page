@@ -132,37 +132,6 @@
       <strong id="countdownCaption">GET READY</strong>
     </div>
 
-    <div class="modal-backdrop hidden" id="ballCountModal" role="dialog" aria-modal="true" aria-labelledby="ballCountTitle">
-      <div class="setting-modal ball-count-modal">
-        <div class="modal-head">
-          <div>
-            <p id="ballCountTitle">점수 세기</p>
-            <span class="ball-count-subtitle" id="ballCountStatus">팀 선택 후 BLE 연결</span>
-          </div>
-          <button class="modal-close" type="button" id="ballCountClose" aria-label="닫기">×</button>
-        </div>
-
-        <div class="ball-count-grid">
-          <section class="ball-count-readout" aria-live="polite">
-            <span class="ball-count-label">LIVE SCORE</span>
-            <strong id="ballCountValue">0</strong>
-            <em id="ballCountTeam">TEAM 1</em>
-          </section>
-
-          <section class="ball-count-panel">
-            <div class="ball-count-control-row primary-controls">
-              <button type="button" id="ballCountConnect">BLE 연결</button>
-              <button type="button" id="ballCountStart">점수 세기 시작</button>
-            </div>
-            <div class="ball-count-control-row secondary-controls">
-              <button type="button" id="ballCountStop">STOP</button>
-              <button type="button" id="ballCountReset">RESET</button>
-            </div>
-          </section>
-        </div>
-      </div>
-    </div>
-
     <div class="record-celebration hidden" id="recordCelebration" role="dialog" aria-modal="true" aria-labelledby="celebrationTitle">
       <div class="fanfare fanfare-left" aria-hidden="true"></div>
       <div class="fanfare fanfare-right" aria-hidden="true"></div>
@@ -179,6 +148,6 @@
     <audio id="bgmAudio" src="./assets/bgm.m4a" preload="auto" loop playsinline></audio>
     <audio id="scoreAudio" src="./assets/score-up.mp3" preload="auto" playsinline></audio>
     <audio id="recordAudio" src="./assets/record-cheer.mp3" preload="auto" playsinline></audio>
-    <script src="./app.js?v=20260821-no-physical-led"></script>
+    <script src="./app.js?v=20260821-no-score-count-modal"></script>
   </body>
 </html>
