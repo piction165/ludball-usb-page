@@ -745,6 +745,18 @@ function setEventMessage(message) {
   if (displayMessage && eventMarquee) eventMarquee.textContent = displayMessage;
 }
 
+function sanitizeEventMarqueeNow() {
+  if (!eventMarquee || !isEspStatusText(eventMarquee.textContent)) return;
+  eventMarquee.textContent = isBleActuallyConnected()
+    ? "BLE 연결됨 · 센서 데이터 수신 대기"
+    : "READY · READY · READY";
+}
+
+if (eventMarquee && "MutationObserver" in window) {
+  const eventMarqueeObserver = new MutationObserver(sanitizeEventMarqueeNow);
+  eventMarqueeObserver.observe(eventMarquee, { childList: true, characterData: true, subtree: true });
+}
+
 function isBleActuallyConnected() {
   return Boolean(
     state.bleConnected &&
@@ -1133,6 +1145,12 @@ function handleEspLine(line) {
   const message = rawLine.toUpperCase();
   if (!message) return;
 
+  if (isEspStatusText(rawLine)) {
+    const statusPayload = rawLine.replace(/^(?:ESP\s*[•·-]\s*)?STATUS\s*:/i, "");
+    handleBleLooseMessage(statusPayload);
+    return;
+  }
+
   if (message.startsWith("ACK:")) {
     const ack = message.slice(4).trim();
     if (ack && !["READY", "START", "GO", "FINISH"].includes(ack)) {
@@ -1143,7 +1161,6 @@ function handleEspLine(line) {
 
   if (message.startsWith("STATUS:")) {
     handleBleLooseMessage(rawLine.slice(rawLine.indexOf(":") + 1));
-    setEventMessage("BLE 연결됨 · 센서 데이터 수신 대기");
     return;
   }
 
