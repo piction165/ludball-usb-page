@@ -924,8 +924,6 @@ async function startBallCounting() {
   await sendBallCountCommand(`SPEED ${defaultBallCountSpeed}`, `속도 ${defaultBallCountSpeed}us 설정`);
   await sendBallCountCommand("START", "IR 점수 감지 대기 중");
   void sendEspCommand("GO");
-  void sendEspCommand("LED_ON");
-  void sendEspCommand("LIGHT_ON");
   await sendBallCountCommand(`ROT ${defaultBallCountDegrees}`, `${defaultBallCountDegrees}도 천천히 회전 · 점수 집계 중`);
 }
 
@@ -1607,7 +1605,6 @@ function startGame() {
       : `${activeTeam.name} START · ${labelFor("difficulty")} 기록 도전`;
   void sendEspCommand("START");
   void sendEspCommand("GO");
-  void sendEspCommand("LED_ON");
   updateFeverState();
   ensureTimerLoop();
 }
