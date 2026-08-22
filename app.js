@@ -1608,7 +1608,7 @@ function startGame() {
   ensureTimerLoop();
 }
 
-function pauseGame() {
+function pauseGame({ sendCommand = true } = {}) {
   if (state.running && state.timerEndsAt) {
     setRemainingMs(state.timerEndsAt - performance.now());
   }
@@ -1617,13 +1617,13 @@ function pauseGame() {
   if (state.phase === "running") state.phase = "paused";
   stopTimer();
   eventMarquee.textContent = "PAUSED · 시간 정지";
-  void sendEspCommand("FINISH");
+  if (sendCommand) void sendEspCommand("FINISH");
   updateFeverState();
 }
 
 async function resetGame(keepScreen = true) {
   clearPendingRemoteScorePulse();
-  pauseGame();
+  pauseGame({ sendCommand: false });
   stopTimer();
   hideCountdown();
   state.countdownActive = false;
