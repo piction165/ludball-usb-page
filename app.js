@@ -1501,6 +1501,13 @@ function sleep(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function resetEspCounterForActiveTeam() {
+  clearPendingRemoteScorePulse();
+  state.ballCountValue = 0;
+  state.lastRemoteScorePulseAt = 0;
+  void sendEspCommand("RESET");
+}
+
 function showCountdownStep(label, caption) {
   countdownLabel.textContent = label;
   countdownCaption.textContent = caption;
@@ -1518,9 +1525,12 @@ function selectTeam(index) {
   state.activeTeamIndex = index;
   state.phase = "ready";
   state.ballCountTeamReady = false;
+  state.teams[index].score = 0;
+  state.teams[index].completed = false;
   setRemainingMs(state.duration * 1000);
   startButton.disabled = false;
   eventMarquee.textContent = `${state.teams[index].name} SELECTED`;
+  resetEspCounterForActiveTeam();
   renderGame();
 }
 
@@ -1566,6 +1576,7 @@ async function runCountdownAndStart() {
 
   activeTeam.score = 0;
   activeTeam.completed = false;
+  resetEspCounterForActiveTeam();
   setRemainingMs(state.duration * 1000);
   renderGame();
   state.countdownActive = true;
@@ -1659,8 +1670,11 @@ function endGame() {
     state.activeTeamIndex = nextIndex;
     state.phase = "ready";
     state.ballCountTeamReady = false;
+    state.teams[nextIndex].score = 0;
+    state.teams[nextIndex].completed = false;
     setRemainingMs(state.duration * 1000);
     eventMarquee.textContent = `${activeTeam.name} DONE · 다음 ${state.teams[nextIndex].name} 선택됨`;
+    resetEspCounterForActiveTeam();
     renderGame();
     showScreen(gameScreen);
     return;
