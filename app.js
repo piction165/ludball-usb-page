@@ -435,7 +435,7 @@ function escapeHtml(value) {
 
 function renderScoreRecords() {
   if (!recordList) return;
-  const sortedRecords = [...scoreRecords].sort((a, b) => b.score - a.score).slice(0, 8);
+  const sortedRecords = [...scoreRecords].sort((a, b) => b.score - a.score);
   recordList.innerHTML = sortedRecords
     .map((record, index) => `
       <li
