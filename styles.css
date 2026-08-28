@@ -486,7 +486,7 @@ button:active {
 
 .score-stage {
   display: grid;
-  grid-template-columns: clamp(210px, 17vw, 300px) minmax(0, 1fr);
+  grid-template-columns: clamp(320px, 28vw, 520px) minmax(0, 1fr);
   gap: clamp(14px, 1.6vw, 24px);
   min-height: 0;
   overflow: hidden;
@@ -615,10 +615,10 @@ button:active {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  min-height: 66px;
+  min-height: 74px;
   border-left: 4px solid var(--cyan);
   background: rgba(95, 252, 255, 0.08);
-  padding: 10px 12px;
+  padding: 10px 14px;
   cursor: pointer;
   transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
@@ -639,8 +639,10 @@ button:active {
 
 .record-main {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
   min-width: 0;
-  gap: 8px;
+  gap: 12px;
 }
 
 .record-board li span {
@@ -656,8 +658,9 @@ button:active {
 .record-board li b {
   color: var(--white);
   font-family: "Arial Black", "Pretendard", system-ui, sans-serif;
-  font-size: clamp(26px, 2.8vw, 46px);
-  line-height: 0.92;
+  font-size: clamp(34px, 3vw, 54px);
+  line-height: 0.9;
+  white-space: nowrap;
   text-shadow: 0 0 18px rgba(255, 255, 255, 0.36), var(--glow-cyan);
 }
 
@@ -704,6 +707,14 @@ button:active {
   gap: clamp(14px, 1.6vw, 24px);
   min-height: 0;
   overflow: hidden;
+}
+
+.game-screen.is-single-player .score-stage {
+  grid-template-columns: clamp(320px, 28vw, 520px) minmax(0, 1fr);
+}
+
+.score-grid.is-single-player {
+  grid-template-columns: minmax(0, 1fr) !important;
 }
 
 .team-card {
@@ -754,6 +765,11 @@ button:active {
   filter: saturate(0.72) brightness(0.78);
 }
 
+.score-grid.is-single-player .team-card {
+  grid-template-rows: auto 1fr auto;
+  padding: clamp(20px, 2.2vw, 34px);
+}
+
 .team-name {
   position: relative;
   display: flex;
@@ -783,6 +799,10 @@ button:active {
   font-size: clamp(88px, 10.5vw, 190px);
   line-height: 0.86;
   text-shadow: 0 0 18px rgba(255, 255, 255, 0.44), 0 0 44px color-mix(in srgb, var(--accent), transparent 24%), 0 0 88px color-mix(in srgb, var(--accent), transparent 42%);
+}
+
+.score-grid.is-single-player .score-value {
+  font-size: clamp(132px, 16vw, 290px);
 }
 
 .podium-score-edit {
@@ -841,7 +861,7 @@ button:active {
 
 .bottom-stage {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(620px, 46vw);
+  grid-template-columns: minmax(260px, 0.72fr) minmax(820px, 1fr);
   justify-content: stretch;
   align-items: stretch;
   gap: 12px;
@@ -869,7 +889,7 @@ button:active {
 
 .stage-actions {
   display: grid;
-  grid-template-columns: repeat(5, minmax(104px, 1fr));
+  grid-template-columns: repeat(6, minmax(104px, 1fr));
   min-width: 0;
   width: 100%;
   justify-content: stretch;
@@ -1726,12 +1746,12 @@ button:active {
   }
 
   .score-stage {
-    grid-template-columns: clamp(190px, 15vw, 260px) minmax(0, 1fr);
+    grid-template-columns: clamp(300px, 28vw, 420px) minmax(0, 1fr);
     gap: 14px;
   }
 
   .record-board {
-    gap: 10px;
+    gap: 8px;
     border-radius: 16px;
     padding: 12px 14px;
   }
@@ -1755,24 +1775,24 @@ button:active {
   }
 
   .record-board ol {
-    gap: 8px;
+    gap: 7px;
   }
 
   .record-board li {
-    min-height: 58px;
-    padding: 8px 10px;
+    min-height: 54px;
+    padding: 8px 10px 8px 12px;
   }
 
   .record-main {
-    gap: 5px;
+    gap: 8px;
   }
 
   .record-board li span {
-    font-size: 12px;
+    font-size: clamp(12px, 1vw, 15px);
   }
 
   .record-board li b {
-    font-size: clamp(25px, 2.4vw, 38px);
+    font-size: clamp(24px, 2.35vw, 38px);
   }
 
   .team-card {
@@ -1794,7 +1814,7 @@ button:active {
   }
 
   .bottom-stage {
-    grid-template-columns: minmax(0, 1fr) minmax(520px, 48vw);
+    grid-template-columns: minmax(220px, 0.66fr) minmax(660px, 1fr);
     gap: 10px;
   }
 
@@ -1809,7 +1829,7 @@ button:active {
   }
 
   .stage-actions button {
-    min-width: 76px;
+    min-width: 0;
     min-height: 42px;
     padding: 8px 11px;
     font-size: 13px;

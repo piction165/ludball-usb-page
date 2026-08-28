@@ -435,7 +435,7 @@ function escapeHtml(value) {
 
 function renderScoreRecords() {
   if (!recordList) return;
-  const sortedRecords = [...scoreRecords].sort((a, b) => b.score - a.score).slice(0, 8);
+  const sortedRecords = [...scoreRecords].sort((a, b) => b.score - a.score).slice(0, 6);
   recordList.innerHTML = sortedRecords
     .map((record, index) => `
       <li
@@ -2142,19 +2142,20 @@ window.addEventListener("keydown", (event) => {
   const keyMap = {
     Digit1: "TEAM_SCORE:1",
     Digit2: "TEAM_SCORE:2",
+    Digit3: "TEAM_SCORE:3",
+    Digit4: "TEAM_SCORE:4",
     KeyQ: "TEAM_SCORE_MINUS:1",
     KeyW: "TEAM_SCORE_MINUS:2",
-    Digit3: "TEAM:3",
-    Digit4: "TEAM:4",
+    KeyE: "TEAM_SCORE_MINUS:3",
+    KeyR: "TEAM_SCORE_MINUS:4",
     Numpad1: "TEAM_SCORE:1",
     Numpad2: "TEAM_SCORE:2",
-    Numpad3: "TEAM:3",
-    Numpad4: "TEAM:4",
+    Numpad3: "TEAM_SCORE:3",
+    Numpad4: "TEAM_SCORE:4",
     Enter: "START",
     KeyS: "START",
     Space: "PLAY_PAUSE",
     KeyP: "PAUSE",
-    KeyR: "RESET",
     KeyO: "OPTION",
     ArrowRight: "NEXT_TEAM",
     ArrowLeft: "PREV_TEAM",
