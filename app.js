@@ -65,13 +65,25 @@ const state = {
   bleProfileLabel: "",
   bleConnectedAt: 0,
   lastBleRxAt: 0,
+  remoteBleDevice: null,
+  remoteBleServer: null,
+  remoteBleNotifyCharacteristic: null,
+  remoteBleWriteCharacteristic: null,
+  remoteBleConnected: false,
+  remoteBleConnecting: false,
+  remoteBleBuffer: "",
+  remoteBleProfileLabel: "",
+  remoteBleConnectedAt: 0,
+  lastRemoteBleRxAt: 0,
   ballCountActive: false,
   ballCountValue: 0,
   ballCountTeamReady: false,
   phase: "setup",
   countdownActive: false,
+  countdownRunId: 0,
   remoteMainButtonLatched: false,
   remoteMainButtonReleaseTimer: null,
+  lastRemoteMainButtonPressedAt: 0,
   lastRemoteScorePulseAt: 0,
   pendingRemoteScorePulseTimer: null,
 };
@@ -121,6 +133,7 @@ const bleProfiles = [
 ];
 const bleOptionalServices = bleProfiles.map((profile) => profile.serviceUuid);
 const remoteMainButtonLockMs = 240;
+const remoteMainButtonDoublePressMs = 3000;
 const remoteScorePulseLockMs = 90;
 const remoteScoreFallbackMs = 180;
 const defaultBallCountDegrees = 360;
@@ -151,6 +164,7 @@ const countdownLabel = document.querySelector("#countdownLabel");
 const countdownCaption = document.querySelector("#countdownCaption");
 const startButton = document.querySelector("#startButton");
 const bleButton = document.querySelector("#bleButton");
+const remoteBleButton = document.querySelector("#remoteBleButton");
 const ballCountModal = document.querySelector("#ballCountModal");
 const ballCountClose = document.querySelector("#ballCountClose");
 const ballCountConnect = document.querySelector("#ballCountConnect");
@@ -584,6 +598,8 @@ function renderGame() {
   modeLabel.textContent = state.gameMode === "versus"
     ? `VERSUS · ${labelFor("difficulty")}`
     : `SCORE TRIAL · ${labelFor("difficulty")}`;
+  gameScreen.classList.toggle("is-single-player", state.teamCount === 1);
+  scoreGrid.classList.toggle("is-single-player", state.teamCount === 1);
   scoreGrid.style.gridTemplateColumns = `repeat(${Math.min(state.teams.length, 4)}, minmax(0, 1fr))`;
   scoreGrid.innerHTML = "";
 
@@ -597,12 +613,17 @@ function renderGame() {
     card.tabIndex = 0;
     card.setAttribute("role", "button");
     card.setAttribute("aria-label", `${team.name} 선택`);
+    const statusLabel = state.teamCount === 1
+      ? "1 PLAYER"
+      : index === state.activeTeamIndex
+        ? "ACTIVE"
+        : team.completed ? "DONE" : "TEAM SELECT";
     card.innerHTML = `
       <div class="team-name">
         <span>${team.name}</span>
       </div>
       <div class="score-value" aria-label="${team.name} 점수">${team.score}</div>
-      <div class="team-status">${index === state.activeTeamIndex ? "ACTIVE" : team.completed ? "DONE" : "TEAM SELECT"}</div>
+      <div class="team-status">${statusLabel}</div>
     `;
     scoreGrid.append(card);
   });
@@ -683,6 +704,41 @@ function addScore(index, point) {
   if (gained > 0) playScoreBurst(1);
   team.score = Math.max(0, team.score + gained);
   eventMarquee.textContent = `${team.name} +${gained} · SCORE ${team.score}`;
+  renderGame();
+}
+
+function ensureTeamScoreSlot(index) {
+  if (index < 0 || index > 3) return null;
+  while (state.teams.length <= index) {
+    const nextIndex = state.teams.length;
+    state.teams.push({
+      name: defaultNames[nextIndex],
+      score: 0,
+      completed: false,
+      accent: accents[nextIndex % accents.length],
+    });
+  }
+  if (state.teamCount <= index) {
+    state.teamCount = index + 1;
+    state.gameMode = state.teamCount > 1 ? "versus" : "score";
+    normalizeSetupState("teamCount");
+    renderSetupLabels();
+  }
+  return state.teams[index];
+}
+
+function addManualTeamScore(index, point = 1) {
+  const team = state.teams[index];
+  if (!team) return;
+  const delta = Math.trunc(Number(point) || 0);
+  if (delta === 0) return;
+  const previousScore = team.score;
+  team.score = Math.max(0, Math.min(999, team.score + delta));
+  const appliedDelta = team.score - previousScore;
+  const deltaLabel = appliedDelta > 0 ? `+${appliedDelta}` : String(appliedDelta);
+  eventMarquee.textContent = `KEY ${index + 1} · ${team.name} ${deltaLabel} · SCORE ${team.score}`;
+  if (appliedDelta > 0) playScoreBurst(Math.min(6, appliedDelta));
+  if (!resultScreen.classList.contains("hidden")) renderResultBoard();
   renderGame();
 }
 
@@ -809,18 +865,23 @@ async function postBallCountToCloud(score) {
 
 function applyBallCountScore(nextScore) {
   const normalizedScore = Math.max(0, Math.min(999, Math.trunc(Number(nextScore) || 0)));
-  const previousScore = state.ballCountValue;
-  if (normalizedScore < previousScore) return;
-  if (normalizedScore === previousScore) return;
+  const previousSensorScore = state.ballCountValue;
+  if (normalizedScore < previousSensorScore) {
+    state.ballCountValue = normalizedScore;
+    updateBallCountUi("IR 카운터 리셋");
+    return;
+  }
+  if (normalizedScore === previousSensorScore) return;
 
+  const gained = normalizedScore - previousSensorScore;
   state.ballCountValue = normalizedScore;
   const team = state.teams[state.activeTeamIndex];
   if (team) {
-    team.score = normalizedScore;
-    if (normalizedScore > previousScore) playScoreBurst(Math.min(6, normalizedScore - previousScore));
+    team.score = Math.max(0, Math.min(999, team.score + gained));
+    playScoreBurst(Math.min(6, gained));
     renderGame();
   }
-  updateBallCountUi(normalizedScore > previousScore ? "IR 감지됨 · 점수 반영" : "점수 리셋");
+  updateBallCountUi("IR 감지됨 · 점수 반영");
   void postBallCountToCloud(normalizedScore);
 }
 
@@ -840,6 +901,7 @@ function applyRemoteScorePulse(source = "SENSOR") {
     return;
   }
 
+  state.ballCountValue = Math.max(0, Math.min(999, state.ballCountValue + 1));
   team.score = Math.max(0, Math.min(999, team.score + 1));
   playScoreBurst(1);
   eventMarquee.textContent = `ESP GOAL · ${team.name} +1`;
@@ -876,19 +938,25 @@ function applyIncomingScoreValue(nextScore, { silent = false } = {}) {
 
   clearPendingRemoteScorePulse();
 
+  const normalizedScore = Math.max(0, Math.min(999, Math.trunc(Number(nextScore) || 0)));
+
   if (isBallCountModalOpen() || state.ballCountActive) {
-    applyBallCountScore(nextScore);
+    applyBallCountScore(normalizedScore);
     return;
   }
 
-  const normalizedScore = Math.max(0, Math.min(999, Math.trunc(Number(nextScore) || 0)));
-  if (normalizedScore < team.score) return;
-  const gained = Math.max(0, normalizedScore - team.score);
+  const previousSensorScore = state.ballCountValue;
+  if (normalizedScore < previousSensorScore) {
+    state.ballCountValue = normalizedScore;
+    return;
+  }
+  const gained = normalizedScore - previousSensorScore;
   if (gained === 0) return;
   if (gained > 0) playScoreBurst(gained);
-  team.score = normalizedScore;
+  state.ballCountValue = normalizedScore;
+  team.score = Math.max(0, Math.min(999, team.score + gained));
   if (!silent) {
-    eventMarquee.textContent = `ESP SCORE · ${team.name} ${team.score}`;
+    eventMarquee.textContent = `ESP SCORE · ${team.name} +${gained} · TOTAL ${team.score}`;
   }
   renderGame();
 }
@@ -933,6 +1001,7 @@ async function stopBallCounting() {
 }
 
 async function resetBallCounting() {
+  if (blockResetWhileRunning("SCORE RESET")) return;
   state.ballCountActive = false;
   state.ballCountValue = 0;
   const team = state.teams[state.activeTeamIndex];
@@ -956,9 +1025,7 @@ async function pressMainRemoteButton() {
   }
 
   if (!resultScreen.classList.contains("hidden") || state.phase === "ended") {
-    void resetGame(true);
-    await sleep(150);
-    runCountdownAndStart();
+    cycleTeam(1);
     return;
   }
 
@@ -970,8 +1037,63 @@ async function pressMainRemoteButton() {
   runCountdownAndStart();
 }
 
+function switchPlayModeFromRemoteDoublePress() {
+  window.clearTimeout(state.remoteMainButtonReleaseTimer);
+  state.remoteMainButtonLatched = false;
+  state.remoteMainButtonReleaseTimer = null;
+  state.lastRemoteMainButtonPressedAt = 0;
+
+  if (state.countdownActive) {
+    cancelCountdown();
+  }
+  if (state.running) {
+    pauseGame({ sendCommand: false });
+  } else {
+    stopTimer();
+  }
+
+  state.gameMode = "score";
+  state.teamCount = state.teamCount === 1 ? 2 : 1;
+  normalizeSetupState("gameMode");
+  renderSetupLabels();
+  buildGameFromSetup();
+  eventMarquee.textContent = state.teamCount === 1
+    ? "REMOTE DOUBLE · 1인 플레이"
+    : "REMOTE DOUBLE · 일반 플레이";
+}
+
+function toggleTeamOneModeFromShortcut() {
+  if (state.countdownActive) {
+    cancelCountdown();
+  }
+  if (state.running) {
+    pauseGame({ sendCommand: false });
+  } else {
+    stopTimer();
+  }
+
+  state.gameMode = "score";
+  state.teamCount = state.teamCount === 1 ? 2 : 1;
+  normalizeSetupState("gameMode");
+  renderSetupLabels();
+  buildGameFromSetup();
+  eventMarquee.textContent = state.teamCount === 1
+    ? "CMD + M · TEAM 1"
+    : "CMD + M · 일반 플레이";
+}
+
 function handleRemoteMainButtonPress() {
   window.clearTimeout(state.remoteMainButtonReleaseTimer);
+
+  const now = Date.now();
+  if (
+    state.lastRemoteMainButtonPressedAt &&
+    now - state.lastRemoteMainButtonPressedAt <= remoteMainButtonDoublePressMs
+  ) {
+    switchPlayModeFromRemoteDoublePress();
+    return;
+  }
+  state.lastRemoteMainButtonPressedAt = now;
 
   if (state.running) {
     state.remoteMainButtonLatched = true;
@@ -1064,6 +1186,20 @@ function handleOperatorCommand(command) {
     return true;
   }
 
+  const teamScoreMatch = normalized.match(/^TEAM_SCORE:([1-4])$/);
+  if (teamScoreMatch) {
+    const index = Number(teamScoreMatch[1]) - 1;
+    addManualTeamScore(index, 1);
+    return true;
+  }
+
+  const teamScoreMinusMatch = normalized.match(/^TEAM_SCORE_MINUS:([1-4])$/);
+  if (teamScoreMinusMatch) {
+    const index = Number(teamScoreMinusMatch[1]) - 1;
+    addManualTeamScore(index, -1);
+    return true;
+  }
+
   switch (normalized) {
     case "READY":
       if (isBallCountModalOpen() || state.ballCountActive) {
@@ -1092,6 +1228,7 @@ function handleOperatorCommand(command) {
         updateBallCountUi("점수 리셋");
         return true;
       }
+      if (blockResetWhileRunning("REMOTE RESET")) return true;
       resetGame(true);
       return true;
     case "FINISH":
@@ -1163,6 +1300,7 @@ function handleEspLine(line) {
   }
 
   if (["RESET_CURRENT_TEAM", "RESET_TEAM", "TEAM_RESET"].includes(message)) {
+    if (blockResetWhileRunning("ESP RESET")) return;
     const team = state.teams[state.activeTeamIndex];
     if (team) {
       team.score = 0;
@@ -1176,6 +1314,11 @@ function handleEspLine(line) {
       renderGame();
       renderResultBoard();
     }
+    return;
+  }
+
+  if (["SCORE_PLUS", "SCORE:+1", "+1", "PLUS"].includes(message)) {
+    applyRemoteScorePulse(message);
     return;
   }
 
@@ -1317,11 +1460,51 @@ function handleBleDisconnect() {
   state.bleConnectedAt = 0;
   state.lastBleRxAt = 0;
   if (bleButton) {
-    bleButton.textContent = "BLE 연결";
+    bleButton.textContent = "바구니 BLE";
     bleButton.classList.remove("is-connected");
   }
   updateBallCountUi("BLE 연결 끊김 · 다시 연결 필요");
   eventMarquee.textContent = "BLE DISCONNECTED · 다시 연결 대기";
+}
+
+function isRemoteBleActuallyConnected() {
+  return Boolean(
+    state.remoteBleConnected &&
+    state.remoteBleDevice?.gatt?.connected
+  );
+}
+
+function handleRemoteBleNotification(event) {
+  const chunk = new TextDecoder().decode(event.target.value);
+  state.lastRemoteBleRxAt = Date.now();
+  state.remoteBleBuffer += chunk;
+  const lines = state.remoteBleBuffer.split(/\r?\n/);
+  state.remoteBleBuffer = lines.pop() || "";
+  lines.forEach((line) => handleEspLine(line.replace(/^REMOTE:/i, "")));
+  if (state.remoteBleBuffer.length > 160) {
+    state.remoteBleBuffer = state.remoteBleBuffer.slice(-80);
+  }
+
+  const bufferedMessage = state.remoteBleBuffer.trim();
+  if (handleBleLooseMessage(bufferedMessage.replace(/^REMOTE:/i, ""))) {
+    state.remoteBleBuffer = "";
+  }
+}
+
+function handleRemoteBleDisconnect() {
+  state.remoteBleConnected = false;
+  state.remoteBleDevice = null;
+  state.remoteBleServer = null;
+  state.remoteBleNotifyCharacteristic = null;
+  state.remoteBleWriteCharacteristic = null;
+  state.remoteBleProfileLabel = "";
+  state.remoteBleConnectedAt = 0;
+  state.lastRemoteBleRxAt = 0;
+  if (remoteBleButton) {
+    remoteBleButton.textContent = "리모컨 BLE";
+    remoteBleButton.classList.remove("is-connected");
+  }
+  eventMarquee.textContent = "REMOTE BLE DISCONNECTED · 다시 연결 대기";
 }
 
 async function getBleProfileConnection(server) {
@@ -1378,7 +1561,7 @@ async function connectEspBle() {
   if (state.bleConnecting) return false;
 
   state.bleConnecting = true;
-  if (bleButton) bleButton.textContent = "BLE 연결 중";
+  if (bleButton) bleButton.textContent = "바구니 연결 중";
 
   try {
     const device = await navigator.bluetooth.requestDevice({
@@ -1404,7 +1587,7 @@ async function connectEspBle() {
     state.bleConnectedAt = Date.now();
     state.lastBleRxAt = 0;
     if (bleButton) {
-      bleButton.textContent = "BLE 연결됨";
+      bleButton.textContent = "바구니 연결됨";
       bleButton.classList.add("is-connected");
     }
     updateBallCountUi(`BLE CONNECTED · ${device.name || profile.label}`);
@@ -1421,12 +1604,72 @@ async function connectEspBle() {
     state.bleConnected = false;
     eventMarquee.textContent = `BLE 연결 실패 · ${error.message || error}`;
     if (bleButton) {
-      bleButton.textContent = "BLE 연결";
+      bleButton.textContent = "바구니 BLE";
       bleButton.classList.remove("is-connected");
     }
     return false;
   } finally {
     state.bleConnecting = false;
+  }
+}
+
+async function connectRemoteBle() {
+  unlockAudio();
+  if (!navigator.bluetooth) {
+    eventMarquee.textContent = "WEB BLUETOOTH 미지원 · CHROME/EDGE 필요";
+    return false;
+  }
+  if (isRemoteBleActuallyConnected()) return true;
+  handleRemoteBleDisconnect();
+  if (state.remoteBleConnecting) return false;
+
+  state.remoteBleConnecting = true;
+  if (remoteBleButton) remoteBleButton.textContent = "리모컨 연결 중";
+
+  try {
+    const device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: bleOptionalServices,
+    });
+    device.addEventListener("gattserverdisconnected", handleRemoteBleDisconnect);
+    const server = await device.gatt.connect();
+    const { profile, notifyCharacteristic, writeCharacteristic } = await getBleProfileConnection(server);
+
+    if (notifyCharacteristic && (notifyCharacteristic.properties.notify || notifyCharacteristic.properties.indicate)) {
+      await notifyCharacteristic.startNotifications();
+      notifyCharacteristic.addEventListener("characteristicvaluechanged", handleRemoteBleNotification);
+    }
+
+    state.remoteBleDevice = device;
+    state.remoteBleServer = server;
+    state.remoteBleNotifyCharacteristic = notifyCharacteristic;
+    state.remoteBleWriteCharacteristic = writeCharacteristic;
+    state.remoteBleConnected = true;
+    state.remoteBleBuffer = "";
+    state.remoteBleProfileLabel = profile.label;
+    state.remoteBleConnectedAt = Date.now();
+    state.lastRemoteBleRxAt = 0;
+    if (remoteBleButton) {
+      remoteBleButton.textContent = "리모컨 연결됨";
+      remoteBleButton.classList.add("is-connected");
+    }
+    eventMarquee.textContent = `REMOTE BLE CONNECTED · ${device.name || profile.label}`;
+    window.setTimeout(() => {
+      if (!isRemoteBleActuallyConnected()) return;
+      if (state.lastRemoteBleRxAt >= state.remoteBleConnectedAt) return;
+      eventMarquee.textContent = "리모컨 BLE 연결됨 · 버튼 입력 대기";
+    }, 1600);
+    return true;
+  } catch (error) {
+    state.remoteBleConnected = false;
+    eventMarquee.textContent = `리모컨 BLE 연결 실패 · ${error.message || error}`;
+    if (remoteBleButton) {
+      remoteBleButton.textContent = "리모컨 BLE";
+      remoteBleButton.classList.remove("is-connected");
+    }
+    return false;
+  } finally {
+    state.remoteBleConnecting = false;
   }
 }
 
@@ -1466,11 +1709,11 @@ function setBleStatus({ checking = false, message = "" } = {}) {
   bleButton?.classList.toggle("is-checking", checking);
 
   if (checking) {
-    if (bleButton) bleButton.textContent = "BLE 확인";
+    if (bleButton) bleButton.textContent = "바구니 확인";
     return;
   }
 
-  if (bleButton) bleButton.textContent = isBleActuallyConnected() ? "BLE 연결됨" : "BLE 연결";
+  if (bleButton) bleButton.textContent = isBleActuallyConnected() ? "바구니 연결됨" : "바구니 BLE";
   if (message) eventMarquee.textContent = message;
 }
 
@@ -1499,6 +1742,16 @@ function updateFeverState() {
 
 function sleep(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function isGameClockRunning() {
+  return state.running && !!state.timerEndsAt && state.remainingMs > 0;
+}
+
+function blockResetWhileRunning(source = "RESET") {
+  if (!isGameClockRunning()) return false;
+  eventMarquee.textContent = `${source} BLOCKED · 경기 중 점수 유지`;
+  return true;
 }
 
 function resetEspCounterForActiveTeam() {
@@ -1539,6 +1792,13 @@ function hideCountdown() {
   countdownOverlay.classList.remove("is-go", "is-pulse");
 }
 
+function cancelCountdown() {
+  state.countdownRunId += 1;
+  hideCountdown();
+  state.countdownActive = false;
+  startButton.disabled = false;
+}
+
 function stopTimer() {
   window.clearInterval(state.intervalId);
   state.intervalId = null;
@@ -1564,8 +1824,10 @@ async function runCountdownAndStart() {
   if (state.running || state.countdownActive) return;
   const activeTeam = state.teams[state.activeTeamIndex];
   if (!activeTeam) return;
+  const countdownRunId = state.countdownRunId + 1;
 
   await unlockAudio();
+  if (countdownRunId !== state.countdownRunId + 1) return;
 
   if (state.phase === "paused") {
     hideCountdown();
@@ -1579,6 +1841,7 @@ async function runCountdownAndStart() {
   resetEspCounterForActiveTeam();
   setRemainingMs(state.duration * 1000);
   renderGame();
+  state.countdownRunId = countdownRunId;
   state.countdownActive = true;
   state.phase = "countdown";
   startButton.disabled = true;
@@ -1588,12 +1851,16 @@ async function runCountdownAndStart() {
 
   showCountdownStep("3", "READY");
   await sleep(700);
+  if (countdownRunId !== state.countdownRunId || !state.countdownActive) return;
   showCountdownStep("2", "READY");
   await sleep(700);
+  if (countdownRunId !== state.countdownRunId || !state.countdownActive) return;
   showCountdownStep("1", "SET");
   await sleep(700);
+  if (countdownRunId !== state.countdownRunId || !state.countdownActive) return;
   showCountdownStep("GO!", "GAME START");
   await sleep(450);
+  if (countdownRunId !== state.countdownRunId || !state.countdownActive) return;
   hideCountdown();
 
   state.countdownActive = false;
@@ -1633,6 +1900,7 @@ function pauseGame({ sendCommand = true } = {}) {
 }
 
 async function resetGame(keepScreen = true) {
+  if (blockResetWhileRunning("RESET")) return;
   clearPendingRemoteScorePulse();
   pauseGame({ sendCommand: false });
   stopTimer();
@@ -1736,7 +2004,7 @@ podium.addEventListener("change", (event) => {
   if (!input) return;
   const row = input.closest("[data-team-index]");
   if (!row) return;
-  setManualScore(Number(row.dataset.teamIndex), input.value);
+  setManualScore(Number(row.dataset.teamIndex), input.value, { playSound: true });
 });
 
 recordAddButton?.addEventListener("click", () => {
@@ -1824,6 +2092,7 @@ recordList?.addEventListener("keydown", (event) => {
 });
 
 bleButton?.addEventListener("click", connectEspBle);
+remoteBleButton?.addEventListener("click", connectRemoteBle);
 ballCountClose?.addEventListener("click", closeBallCountModal);
 ballCountModal?.addEventListener("click", (event) => {
   if (event.target === ballCountModal) closeBallCountModal();
@@ -1842,6 +2111,9 @@ document.querySelector("#setupButton").addEventListener("click", () => {
 document.querySelector("#replayButton").addEventListener("click", () => resetGame(true));
 document.querySelector("#resultSetupButton").addEventListener("click", () => showScreen(setupScreen));
 
+window.ludballShowTeamOneOnly = toggleTeamOneModeFromShortcut;
+window.ludballToggleTeamOneMode = toggleTeamOneModeFromShortcut;
+
 window.addEventListener("keydown", (event) => {
   const targetTag = event.target?.tagName?.toLowerCase();
   const isTyping = ["input", "textarea", "select"].includes(targetTag);
@@ -1855,13 +2127,27 @@ window.addEventListener("keydown", (event) => {
   }
   if (!settingModal.classList.contains("hidden") && event.code !== "Escape") return;
 
+  const isTeamOneShortcut = event.code === "KeyM"
+    && !event.shiftKey
+    && !event.altKey
+    && (event.metaKey || event.ctrlKey || (!event.metaKey && !event.ctrlKey));
+
+  if (isTeamOneShortcut) {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleTeamOneModeFromShortcut();
+    return;
+  }
+
   const keyMap = {
-    Digit1: "TEAM:1",
-    Digit2: "TEAM:2",
+    Digit1: "TEAM_SCORE:1",
+    Digit2: "TEAM_SCORE:2",
+    KeyQ: "TEAM_SCORE_MINUS:1",
+    KeyW: "TEAM_SCORE_MINUS:2",
     Digit3: "TEAM:3",
     Digit4: "TEAM:4",
-    Numpad1: "TEAM:1",
-    Numpad2: "TEAM:2",
+    Numpad1: "TEAM_SCORE:1",
+    Numpad2: "TEAM_SCORE:2",
     Numpad3: "TEAM:3",
     Numpad4: "TEAM:4",
     Enter: "START",
@@ -1892,7 +2178,7 @@ window.addEventListener("keydown", (event) => {
   }
 
   handleOperatorCommand(command);
-});
+}, { capture: true });
 
 renderSetupLabels();
 renderScoreRecords();
