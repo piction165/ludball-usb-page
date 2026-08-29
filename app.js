@@ -173,6 +173,8 @@ const scoreResultTitle = document.querySelector("#scoreResultTitle");
 const scoreResultValue = document.querySelector("#scoreResultValue");
 const scoreResultTeam = document.querySelector("#scoreResultTeam");
 const scoreResultClose = document.querySelector("#scoreResultClose");
+const breakModal = document.querySelector("#breakModal");
+const breakClose = document.querySelector("#breakClose");
 const startButton = document.querySelector("#startButton");
 const bleButton = document.querySelector("#bleButton");
 const remoteBleButton = document.querySelector("#remoteBleButton");
@@ -413,6 +415,26 @@ function hideScoreResultModal({ runAction = true } = {}) {
   const action = state.pendingScoreResultAction;
   state.pendingScoreResultAction = null;
   if (runAction) action?.();
+}
+
+function isBreakModalOpen() {
+  return Boolean(breakModal && !breakModal.classList.contains("hidden"));
+}
+
+function openBreakModal() {
+  if (state.countdownActive) {
+    state.countdownActive = false;
+    hideCountdown();
+    startButton.disabled = false;
+  }
+  if (state.running) pauseGame();
+  eventMarquee.textContent = "쉬는 시간 · PAUSE";
+  breakModal?.classList.remove("hidden");
+  breakClose?.focus({ preventScroll: true });
+}
+
+function closeBreakModal() {
+  breakModal?.classList.add("hidden");
 }
 
 function renderTeamInputs() {
@@ -1375,8 +1397,7 @@ function handleOperatorCommand(command) {
       return true;
     case "OPTION":
     case "SETUP":
-      pauseGame();
-      showScreen(setupScreen);
+      openBreakModal();
       return true;
     case "NEXT_TEAM":
       cycleTeam(1);
@@ -2048,6 +2069,7 @@ async function resetGame(keepScreen = true) {
   if (blockResetWhileRunning("RESET")) return;
   clearPendingRemoteScorePulse();
   hideScoreResultModal({ runAction: false });
+  closeBreakModal();
   pauseGame({ sendCommand: false });
   stopTimer();
   hideCountdown();
@@ -2101,7 +2123,7 @@ function advanceAfterEndGame(activeTeam) {
     return;
   }
 
-  showScreen(resultScreen);
+  void resetGame(true);
 }
 
 document.querySelectorAll("[data-setting]").forEach((button) => {
@@ -2133,6 +2155,10 @@ recordCelebration?.addEventListener("click", (event) => {
 scoreResultClose?.addEventListener("click", hideScoreResultModal);
 scoreResultModal?.addEventListener("click", (event) => {
   if (event.target === scoreResultModal) hideScoreResultModal();
+});
+breakClose?.addEventListener("click", closeBreakModal);
+breakModal?.addEventListener("click", (event) => {
+  if (event.target === breakModal) closeBreakModal();
 });
 
 setupForm.addEventListener("submit", (event) => {
@@ -2261,12 +2287,9 @@ ballCountReset?.addEventListener("click", resetBallCounting);
 startButton.addEventListener("click", runCountdownAndStart);
 document.querySelector("#pauseButton").addEventListener("click", pauseGame);
 document.querySelector("#resetButton").addEventListener("click", () => resetGame(true));
-document.querySelector("#setupButton").addEventListener("click", () => {
-  pauseGame();
-  showScreen(setupScreen);
-});
+document.querySelector("#setupButton").addEventListener("click", openBreakModal);
 document.querySelector("#replayButton").addEventListener("click", () => resetGame(true));
-document.querySelector("#resultSetupButton").addEventListener("click", () => showScreen(setupScreen));
+document.querySelector("#resultSetupButton").addEventListener("click", openBreakModal);
 
 window.ludballShowTeamOneOnly = toggleTeamOneModeFromShortcut;
 window.ludballToggleTeamOneMode = toggleTeamOneModeFromShortcut;
@@ -2286,6 +2309,13 @@ window.addEventListener("keydown", (event) => {
     if (event.code === "Escape") {
       event.preventDefault();
       closeBallCountModal();
+    }
+    return;
+  }
+  if (isBreakModalOpen()) {
+    if (["Enter", "Space", "Escape"].includes(event.code)) {
+      event.preventDefault();
+      closeBreakModal();
     }
     return;
   }

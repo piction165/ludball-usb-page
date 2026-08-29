@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Ludball Challenge</title>
-    <link rel="stylesheet" href="./styles.css?v=20260829-action-bar-one-row" />
+    <link rel="stylesheet" href="./styles.css?v=20260829-break-modal" />
   </head>
   <body>
     <main class="app-shell">
@@ -97,7 +97,7 @@
             <button type="button" id="startButton">GAME START</button>
             <button type="button" id="pauseButton">PAUSE</button>
             <button type="button" id="resetButton">RESET</button>
-            <button type="button" id="setupButton">OPTION</button>
+            <button type="button" id="setupButton">쉬는 시간</button>
           </div>
         </div>
       </section>
@@ -110,7 +110,7 @@
           <div class="podium" id="podium"></div>
           <div class="stage-actions">
             <button type="button" id="replayButton">REPLAY</button>
-            <button type="button" id="resultSetupButton">OPTION</button>
+            <button type="button" id="resultSetupButton">쉬는 시간</button>
           </div>
         </div>
       </section>
@@ -142,6 +142,15 @@
       </div>
     </div>
 
+    <div class="break-modal hidden" id="breakModal" role="dialog" aria-modal="true" aria-labelledby="breakTitle">
+      <div class="break-card">
+        <p>PAUSE</p>
+        <strong id="breakTitle">쉬는 시간</strong>
+        <span>잠시 정비 중</span>
+        <button type="button" id="breakClose">확인</button>
+      </div>
+    </div>
+
     <div class="record-celebration hidden" id="recordCelebration" role="dialog" aria-modal="true" aria-labelledby="celebrationTitle">
       <div class="fanfare fanfare-left" aria-hidden="true"></div>
       <div class="fanfare fanfare-right" aria-hidden="true"></div>
@@ -158,6 +167,6 @@
     <audio id="bgmAudio" src="./assets/bgm.mp3?v=20260829-bgm-mp3" preload="auto" loop playsinline></audio>
     <audio id="scoreAudio" src="./assets/point-coin.mp3?v=20260826-score-sound-coin" preload="auto" playsinline></audio>
     <audio id="recordAudio" src="./assets/record-cheer.mp3" preload="auto" playsinline></audio>
-    <script src="./app.js?v=20260829-record-dense-tied-ranks"></script>
+    <script src="./app.js?v=20260829-break-modal"></script>
   </body>
 </html>

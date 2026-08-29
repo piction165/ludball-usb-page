@@ -1440,6 +1440,77 @@ button:active {
   box-shadow: var(--glow-pink);
 }
 
+.break-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 86;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(66, 255, 210, 0.2), transparent 42%),
+    rgba(2, 4, 10, 0.74);
+  backdrop-filter: blur(8px);
+  padding: 24px;
+}
+
+.break-card {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: min(700px, 92vw);
+  border: 1px solid rgba(66, 255, 210, 0.66);
+  border-radius: 28px;
+  background:
+    linear-gradient(145deg, rgba(66, 255, 210, 0.18), transparent 45%, rgba(95, 252, 255, 0.14)),
+    rgba(4, 8, 16, 0.95);
+  box-shadow:
+    0 0 42px rgba(66, 255, 210, 0.42),
+    0 0 120px rgba(95, 252, 255, 0.18),
+    inset 0 0 34px rgba(255, 255, 255, 0.08);
+  padding: clamp(30px, 5vw, 64px);
+  text-align: center;
+  animation: celebrationPop 360ms cubic-bezier(.2, 1.28, .24, 1) both;
+}
+
+.break-card p,
+.break-card span {
+  margin: 0;
+  color: var(--green);
+  font-weight: 1000;
+  text-shadow: var(--glow-pink);
+}
+
+.break-card p {
+  font-size: clamp(18px, 2vw, 28px);
+}
+
+.break-card strong {
+  color: var(--white);
+  font-family: "Arial Black", "Pretendard", system-ui, sans-serif;
+  font-size: clamp(56px, 9vw, 128px);
+  line-height: 0.98;
+  text-shadow:
+    0 0 22px rgba(255, 255, 255, 0.46),
+    0 0 62px rgba(66, 255, 210, 0.6);
+}
+
+.break-card span {
+  font-size: clamp(22px, 2.6vw, 40px);
+}
+
+.break-card button {
+  min-width: 190px;
+  min-height: 58px;
+  border: 1px solid rgba(66, 255, 210, 0.72);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(66, 255, 210, 0.95), rgba(44, 255, 154, 0.88));
+  color: #03100e;
+  cursor: pointer;
+  font-weight: 1000;
+  font-size: 20px;
+  box-shadow: var(--glow-pink);
+}
+
 .record-celebration {
   position: fixed;
   inset: 0;
