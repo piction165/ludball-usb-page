@@ -841,7 +841,7 @@ button:active {
 
 .bottom-stage {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(620px, 46vw);
+  grid-template-columns: minmax(0, 1fr) minmax(720px, 52vw);
   justify-content: stretch;
   align-items: stretch;
   gap: 12px;
@@ -869,11 +869,17 @@ button:active {
 
 .stage-actions {
   display: grid;
-  grid-template-columns: repeat(5, minmax(104px, 1fr));
+  grid-template-columns: repeat(6, minmax(90px, 1fr));
   min-width: 0;
   width: 100%;
   justify-content: stretch;
   gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.stage-actions::-webkit-scrollbar {
+  display: none;
 }
 
 .stage-actions button {
@@ -886,6 +892,7 @@ button:active {
   background: rgba(7, 15, 29, 0.9);
   color: var(--cyan);
   box-shadow: 0 0 14px rgba(95, 252, 255, 0.32);
+  white-space: nowrap;
 }
 
 .stage-actions #startButton {
@@ -1865,7 +1872,7 @@ button:active {
   }
 
   .bottom-stage {
-    grid-template-columns: minmax(0, 1fr) minmax(520px, 48vw);
+    grid-template-columns: minmax(0, 1fr) minmax(560px, 50vw);
     gap: 10px;
   }
 
@@ -1876,6 +1883,7 @@ button:active {
   }
 
   .stage-actions {
+    grid-template-columns: repeat(6, minmax(76px, 1fr));
     gap: 6px;
   }
 
