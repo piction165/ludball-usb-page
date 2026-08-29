@@ -2,6 +2,9 @@ const accents = ["#42ffd2", "#5ffcff", "#2cff9a", "#b8fff1"];
 const defaultNames = ["TEAM 1", "TEAM 2", "TEAM 3", "TEAM 4"];
 const recordStorageKey = "ludballScoreRecords";
 const dailyRoundStorageKeyPrefix = "ludballRounds:";
+const dailyRoundMinimums = {
+  "2026-08-29": 38,
+};
 const defaultScoreRecords = [];
 const legacyDefaultRecordIds = new Set(["default-1", "default-2", "default-3"]);
 const legacyDefaultRecordKeys = new Set(["이클립스:104", "2위:102", "3위:93"]);
@@ -454,19 +457,47 @@ function saveScoreRecords() {
   window.localStorage.setItem(recordStorageKey, JSON.stringify(scoreRecords));
 }
 
-function todayRoundStorageKey() {
+function todayDateKey() {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
-  return `${dailyRoundStorageKeyPrefix}${year}-${month}-${day}`;
+  return `${year}-${month}-${day}`;
+}
+
+function todayRoundStorageKey() {
+  return `${dailyRoundStorageKeyPrefix}${todayDateKey()}`;
+}
+
+function todayRoundMinimum() {
+  return dailyRoundMinimums[todayDateKey()] || 0;
+}
+
+function normalizeTodayRoundCount(value) {
+  return Math.max(todayRoundMinimum(), 0, Math.trunc(Number(value) || 0));
+}
+
+function seedTodayRoundCountIfNeeded(count) {
+  if (count <= 0) {
+    return;
+  }
+  try {
+    const key = todayRoundStorageKey();
+    const storedCount = Math.max(0, Math.trunc(Number(window.localStorage.getItem(key)) || 0));
+    if (storedCount < count) {
+      window.localStorage.setItem(key, String(count));
+    }
+  } catch (error) {
+  }
 }
 
 function loadTodayRoundCount() {
   try {
-    return Math.max(0, Math.trunc(Number(window.localStorage.getItem(todayRoundStorageKey())) || 0));
+    const count = normalizeTodayRoundCount(window.localStorage.getItem(todayRoundStorageKey()));
+    seedTodayRoundCountIfNeeded(count);
+    return count;
   } catch (error) {
-    return 0;
+    return todayRoundMinimum();
   }
 }
 
