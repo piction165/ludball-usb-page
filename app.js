@@ -1025,7 +1025,7 @@ async function pressMainRemoteButton() {
   }
 
   if (!resultScreen.classList.contains("hidden") || state.phase === "ended") {
-    cycleTeam(1);
+    resetGame(true);
     return;
   }
 
@@ -1086,7 +1086,9 @@ function handleRemoteMainButtonPress() {
   window.clearTimeout(state.remoteMainButtonReleaseTimer);
 
   const now = Date.now();
+  const isEnded = !resultScreen.classList.contains("hidden") || state.phase === "ended";
   if (
+    !isEnded &&
     state.lastRemoteMainButtonPressedAt &&
     now - state.lastRemoteMainButtonPressedAt <= remoteMainButtonDoublePressMs
   ) {
