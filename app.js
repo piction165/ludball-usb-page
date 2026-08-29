@@ -1360,6 +1360,11 @@ function handleEspLine(line) {
     applyRemoteScorePulse(message);
     return;
   }
+
+  if (message === "D4") {
+    applyRemoteScorePulse("REMOTE D4");
+    return;
+  }
 }
 
 function handleBleLooseMessage(rawText) {
@@ -1401,6 +1406,11 @@ function handleBleLooseMessage(rawText) {
     return true;
   }
 
+  if (normalized === "D4") {
+    applyRemoteScorePulse("REMOTE D4");
+    return true;
+  }
+
   const scoreMatch = normalized.match(/(?:^|[^A-Z])(?:SCORE|COUNT|HITS?)\s*[:= ]\s*(\d{1,3})(?:\D|$)/);
   if (scoreMatch) {
     const isStatusText = /STATUS|BITS|ENABLED|RUNNING|MOTION|REMAINING/.test(normalized);
@@ -1408,7 +1418,7 @@ function handleBleLooseMessage(rawText) {
     return true;
   }
 
-  if (/(?:HIT|GOAL|DETECT|SCORE_PLUS|TEAM1\+1)/.test(normalized)) {
+  if (/(?:HIT|GOAL|DETECT|SCORE_PLUS|TEAM1\+1|^D4$)/.test(normalized)) {
     noteSensorSignal(normalized.slice(0, 24));
     return true;
   }
