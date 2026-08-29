@@ -175,6 +175,9 @@ const scoreResultTeam = document.querySelector("#scoreResultTeam");
 const scoreResultClose = document.querySelector("#scoreResultClose");
 const breakModal = document.querySelector("#breakModal");
 const breakClose = document.querySelector("#breakClose");
+const breakUntilLabel = document.querySelector("#breakUntilLabel");
+const breakTimeForm = document.querySelector("#breakTimeForm");
+const breakUntilInput = document.querySelector("#breakUntilInput");
 const startButton = document.querySelector("#startButton");
 const bleButton = document.querySelector("#bleButton");
 const remoteBleButton = document.querySelector("#remoteBleButton");
@@ -429,12 +432,25 @@ function openBreakModal() {
   }
   if (state.running) pauseGame();
   eventMarquee.textContent = "쉬는 시간 · PAUSE";
+  if (breakUntilInput && !breakUntilInput.value) breakUntilInput.value = defaultBreakUntilTime();
+  updateBreakUntilLabel();
   breakModal?.classList.remove("hidden");
-  breakClose?.focus({ preventScroll: true });
+  breakUntilInput?.focus({ preventScroll: true });
 }
 
 function closeBreakModal() {
   breakModal?.classList.add("hidden");
+}
+
+function defaultBreakUntilTime() {
+  const date = new Date(Date.now() + 10 * 60 * 1000);
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function updateBreakUntilLabel() {
+  const value = breakUntilInput?.value || "";
+  if (!breakUntilLabel) return;
+  breakUntilLabel.textContent = value ? `${value}까지` : "잠시 정비 중";
 }
 
 function renderTeamInputs() {
@@ -2159,6 +2175,11 @@ scoreResultModal?.addEventListener("click", (event) => {
 breakClose?.addEventListener("click", closeBreakModal);
 breakModal?.addEventListener("click", (event) => {
   if (event.target === breakModal) closeBreakModal();
+});
+breakTimeForm?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  updateBreakUntilLabel();
+  breakClose?.focus({ preventScroll: true });
 });
 
 setupForm.addEventListener("submit", (event) => {
