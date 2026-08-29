@@ -233,39 +233,36 @@ function playTone(frequency, duration = 0.12, volume = 0.12, type = "square", de
 async function unlockAudio() {
   if (audioUnlocked) return;
 
+  const context = getAudioContext();
+  let contextReady = !context;
   try {
-    const context = getAudioContext();
     if (context?.state === "suspended") await context.resume();
-
-    if (scoreAudio) {
-      const previousVolume = scoreAudio.volume;
-      scoreAudio.volume = 0;
-      await scoreAudio.play();
-      scoreAudio.pause();
-      scoreAudio.currentTime = 0;
-      scoreAudio.volume = previousVolume;
-    }
-
-    if (bgmAudio) {
-      const previousVolume = bgmAudio.volume;
-      bgmAudio.volume = 0;
-      await bgmAudio.play();
-      bgmAudio.pause();
-      bgmAudio.currentTime = 0;
-      bgmAudio.volume = previousVolume;
-    }
-
-    if (recordAudio) {
-      const previousVolume = recordAudio.volume;
-      recordAudio.volume = 0;
-      await recordAudio.play();
-      recordAudio.pause();
-      recordAudio.currentTime = 0;
-      recordAudio.volume = previousVolume;
-    }
-    audioUnlocked = true;
+    contextReady = !context || context.state !== "suspended";
   } catch (error) {
-    audioUnlocked = Boolean(audioContext);
+    contextReady = false;
+  }
+
+  const mediaReady = await Promise.all([scoreAudio, bgmAudio, recordAudio]
+    .filter(Boolean)
+    .map(unlockMediaElement));
+  audioUnlocked = contextReady && mediaReady.every(Boolean);
+}
+
+async function unlockMediaElement(audio) {
+  const previousVolume = audio.volume;
+  const previousMuted = audio.muted;
+  try {
+    audio.muted = true;
+    audio.volume = 0;
+    await audio.play();
+    audio.pause();
+    audio.currentTime = 0;
+    return true;
+  } catch (error) {
+    return false;
+  } finally {
+    audio.volume = previousVolume;
+    audio.muted = previousMuted;
   }
 }
 
@@ -273,14 +270,14 @@ async function playBgm() {
   try {
     await unlockAudio();
     if (bgmAudio) {
+      bgmAudio.muted = false;
       bgmAudio.volume = 0.7;
       await bgmAudio.play();
       return;
     }
-    startGeneratedBgm();
   } catch (error) {
-    startGeneratedBgm();
   }
+  await startGeneratedBgm();
 }
 
 async function startGeneratedBgm() {
