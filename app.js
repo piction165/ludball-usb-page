@@ -632,24 +632,41 @@ function sortedTeams() {
   return [...state.teams].sort((a, b) => b.score - a.score);
 }
 
-function renderResultBoard() {
-  const sorted = sortedTeams();
-  const winner = sorted[0];
-  if (!winner) return;
-  const tied = sorted.filter((team) => team.score === winner.score);
+function rankedTeams() {
+  let previousScore = null;
+  let currentRank = 0;
 
-  winnerText.textContent = tied.length > 1 ? "DRAW GAME" : `${winner.name} WIN`;
+  return sortedTeams().map((team, index) => {
+    if (team.score !== previousScore) {
+      currentRank = index + 1;
+      previousScore = team.score;
+    }
+    return { team, rank: currentRank };
+  });
+}
+
+function renderResultBoard() {
+  const ranked = rankedTeams();
+  const winner = ranked[0]?.team;
+  if (!winner) return;
+  const tied = ranked.filter(({ team }) => team.score === winner.score);
+
+  winnerText.textContent = tied.length > 1 ? "공동 1위" : `${winner.name} WIN`;
   const resultPrefix = state.gameMode === "versus" ? "대결" : "점수 내기";
   resultSummary.textContent = tied.length > 1
-    ? `공동 1등 · ${winner.score}점`
+    ? `${tied.map(({ team }) => team.name).join(" · ")} · ${winner.score}점`
     : `${resultPrefix} 우승 · ${winner.score}점`;
 
-  podium.innerHTML = sorted
-    .map((team, index) => {
+  podium.innerHTML = ranked
+    .map(({ team, rank }, index) => {
       const originalIndex = state.teams.indexOf(team);
+      const isTied = ranked.some(({ team: otherTeam, rank: otherRank }, otherIndex) => (
+        otherIndex !== index && otherRank === rank && otherTeam.score === team.score
+      ));
+      const rankLabel = isTied ? `공동 ${rank}위` : `${rank}위`;
       return `
         <div class="podium-row" data-team-index="${originalIndex}">
-          <span>${index + 1}. ${team.name}</span>
+          <span>${rankLabel}. ${team.name}</span>
           <div class="podium-score-edit" aria-label="${team.name} 결과 점수 수동 수정">
             <input
               class="manual-score-input"
