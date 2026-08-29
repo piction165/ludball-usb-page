@@ -1362,6 +1362,77 @@ button:active {
   text-shadow: var(--glow-pink);
 }
 
+.score-result-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 88;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(95, 252, 255, 0.24), transparent 40%),
+    rgba(2, 4, 10, 0.72);
+  backdrop-filter: blur(8px);
+  padding: 24px;
+}
+
+.score-result-card {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  width: min(760px, 92vw);
+  border: 1px solid rgba(95, 252, 255, 0.72);
+  border-radius: 28px;
+  background:
+    linear-gradient(145deg, rgba(95, 252, 255, 0.2), transparent 42%, rgba(44, 255, 154, 0.16)),
+    rgba(4, 8, 16, 0.94);
+  box-shadow:
+    0 0 46px rgba(95, 252, 255, 0.56),
+    0 0 140px rgba(44, 255, 154, 0.24),
+    inset 0 0 34px rgba(255, 255, 255, 0.08);
+  padding: clamp(30px, 5vw, 68px);
+  text-align: center;
+  animation: celebrationPop 420ms cubic-bezier(.2, 1.28, .24, 1) both;
+}
+
+.score-result-card p,
+.score-result-card span {
+  margin: 0;
+  color: var(--green);
+  font-weight: 1000;
+  text-shadow: var(--glow-pink);
+}
+
+.score-result-card p {
+  font-size: clamp(20px, 2.6vw, 38px);
+}
+
+.score-result-card strong {
+  color: var(--white);
+  font-family: "Arial Black", "Pretendard", system-ui, sans-serif;
+  font-size: clamp(82px, 14vw, 176px);
+  line-height: 0.9;
+  text-shadow:
+    0 0 22px rgba(255, 255, 255, 0.5),
+    0 0 66px rgba(95, 252, 255, 0.72);
+}
+
+.score-result-card span {
+  font-size: clamp(24px, 3vw, 46px);
+}
+
+.score-result-card button {
+  min-width: 190px;
+  min-height: 58px;
+  border: 1px solid rgba(66, 255, 210, 0.72);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(66, 255, 210, 0.95), rgba(44, 255, 154, 0.88));
+  color: #03100e;
+  cursor: pointer;
+  font-weight: 1000;
+  font-size: 20px;
+  box-shadow: var(--glow-pink);
+}
+
 .record-celebration {
   position: fixed;
   inset: 0;

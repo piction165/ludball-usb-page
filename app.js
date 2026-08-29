@@ -86,6 +86,7 @@ const state = {
   lastRemoteMainButtonPressedAt: 0,
   lastRemoteScorePulseAt: 0,
   pendingRemoteScorePulseTimer: null,
+  pendingScoreResultAction: null,
 };
 
 const cloudScoreUrl = "https://ludball-usb-page.vercel.app/api/score";
@@ -162,6 +163,11 @@ const modalClose = document.querySelector("#modalClose");
 const countdownOverlay = document.querySelector("#countdownOverlay");
 const countdownLabel = document.querySelector("#countdownLabel");
 const countdownCaption = document.querySelector("#countdownCaption");
+const scoreResultModal = document.querySelector("#scoreResultModal");
+const scoreResultTitle = document.querySelector("#scoreResultTitle");
+const scoreResultValue = document.querySelector("#scoreResultValue");
+const scoreResultTeam = document.querySelector("#scoreResultTeam");
+const scoreResultClose = document.querySelector("#scoreResultClose");
 const startButton = document.querySelector("#startButton");
 const bleButton = document.querySelector("#bleButton");
 const remoteBleButton = document.querySelector("#remoteBleButton");
@@ -376,6 +382,32 @@ function showRecordCelebration(record) {
 function hideRecordCelebration() {
   recordCelebration?.classList.add("hidden");
   document.body.classList.remove("is-record-celebrating");
+}
+
+function showScoreResultModal(team, onClose) {
+  if (!scoreResultModal || !team) {
+    onClose?.();
+    return;
+  }
+
+  scoreResultTitle.textContent = "이번 점수";
+  scoreResultValue.textContent = `${team.score}점`;
+  scoreResultTeam.textContent = team.name;
+  state.pendingScoreResultAction = onClose || null;
+  scoreResultModal.classList.remove("hidden");
+  scoreResultClose?.focus({ preventScroll: true });
+}
+
+function isScoreResultModalOpen() {
+  return Boolean(scoreResultModal && !scoreResultModal.classList.contains("hidden"));
+}
+
+function hideScoreResultModal({ runAction = true } = {}) {
+  if (!scoreResultModal || scoreResultModal.classList.contains("hidden")) return;
+  scoreResultModal.classList.add("hidden");
+  const action = state.pendingScoreResultAction;
+  state.pendingScoreResultAction = null;
+  if (runAction) action?.();
 }
 
 function renderTeamInputs() {
@@ -1098,6 +1130,11 @@ function toggleTeamOneModeFromShortcut() {
 
 function handleRemoteMainButtonPress() {
   window.clearTimeout(state.remoteMainButtonReleaseTimer);
+
+  if (isScoreResultModalOpen()) {
+    hideScoreResultModal();
+    return;
+  }
 
   const now = Date.now();
   const isEnded = !resultScreen.classList.contains("hidden") || state.phase === "ended";
@@ -1928,6 +1965,7 @@ function pauseGame({ sendCommand = true } = {}) {
 async function resetGame(keepScreen = true) {
   if (blockResetWhileRunning("RESET")) return;
   clearPendingRemoteScorePulse();
+  hideScoreResultModal({ runAction: false });
   pauseGame({ sendCommand: false });
   stopTimer();
   hideCountdown();
@@ -1958,6 +1996,10 @@ function endGame() {
   if (activeTeam) activeTeam.completed = true;
   renderResultBoard();
 
+  showScoreResultModal(activeTeam, () => advanceAfterEndGame(activeTeam));
+}
+
+function advanceAfterEndGame(activeTeam) {
   state.round += 1;
   const nextIndex = state.teams.findIndex((team) => !team.completed);
   if (nextIndex >= 0) {
@@ -2002,6 +2044,10 @@ settingModal.addEventListener("click", (event) => {
 celebrationClose?.addEventListener("click", hideRecordCelebration);
 recordCelebration?.addEventListener("click", (event) => {
   if (event.target === recordCelebration) hideRecordCelebration();
+});
+scoreResultClose?.addEventListener("click", hideScoreResultModal);
+scoreResultModal?.addEventListener("click", (event) => {
+  if (event.target === scoreResultModal) hideScoreResultModal();
 });
 
 setupForm.addEventListener("submit", (event) => {
@@ -2144,6 +2190,13 @@ window.addEventListener("keydown", (event) => {
   const targetTag = event.target?.tagName?.toLowerCase();
   const isTyping = ["input", "textarea", "select"].includes(targetTag);
   if (isTyping) return;
+  if (isScoreResultModalOpen()) {
+    if (["Enter", "Space", "Escape"].includes(event.code)) {
+      event.preventDefault();
+      hideScoreResultModal();
+    }
+    return;
+  }
   if (isBallCountModalOpen()) {
     if (event.code === "Escape") {
       event.preventDefault();
