@@ -527,18 +527,9 @@ function escapeHtml(value) {
 function renderScoreRecords() {
   if (!recordList) return;
   const sortedRecords = [...scoreRecords].sort((a, b) => b.score - a.score);
-  let previousScore = null;
-  let currentRank = 0;
   recordList.innerHTML = sortedRecords
     .map((record, index) => {
-      if (record.score !== previousScore) {
-        currentRank = index + 1;
-        previousScore = record.score;
-      }
-      const isTied = sortedRecords.some((otherRecord, otherIndex) => (
-        otherIndex !== index && otherRecord.score === record.score
-      ));
-      const rankLabel = isTied ? `공동 ${currentRank}등` : `${currentRank}등`;
+      const rankLabel = `${index + 1}위`;
 
       return `
         <li
