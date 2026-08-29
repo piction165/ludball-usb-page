@@ -1,6 +1,7 @@
 const accents = ["#42ffd2", "#5ffcff", "#2cff9a", "#b8fff1"];
 const defaultNames = ["TEAM 1", "TEAM 2", "TEAM 3", "TEAM 4"];
 const recordStorageKey = "ludballScoreRecords";
+const dailyRoundStorageKeyPrefix = "ludballRounds:";
 const defaultScoreRecords = [];
 const legacyDefaultRecordIds = new Set(["default-1", "default-2", "default-3"]);
 const legacyDefaultRecordKeys = new Set(["이클립스:104", "2위:102", "3위:93"]);
@@ -55,6 +56,7 @@ const state = {
   intervalId: null,
   timerEndsAt: null,
   round: 1,
+  todayRoundCount: loadTodayRoundCount(),
   bleDevice: null,
   bleServer: null,
   bleNotifyCharacteristic: null,
@@ -452,6 +454,35 @@ function saveScoreRecords() {
   window.localStorage.setItem(recordStorageKey, JSON.stringify(scoreRecords));
 }
 
+function todayRoundStorageKey() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${dailyRoundStorageKeyPrefix}${year}-${month}-${day}`;
+}
+
+function loadTodayRoundCount() {
+  try {
+    return Math.max(0, Math.trunc(Number(window.localStorage.getItem(todayRoundStorageKey())) || 0));
+  } catch (error) {
+    return 0;
+  }
+}
+
+function saveTodayRoundCount() {
+  try {
+    window.localStorage.setItem(todayRoundStorageKey(), String(state.todayRoundCount));
+  } catch (error) {
+  }
+}
+
+function incrementTodayRoundCount() {
+  state.todayRoundCount += 1;
+  saveTodayRoundCount();
+  renderRoundLabel();
+}
+
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
     "&": "&amp;",
@@ -621,9 +652,13 @@ function readyGameFromSetup() {
   sendEspCommand("READY");
 }
 
+function renderRoundLabel() {
+  roundLabel.textContent = `ROUND ${String(state.round).padStart(2, "0")} · 오늘 총 ${state.todayRoundCount}R`;
+}
+
 function renderGame() {
   timerText.textContent = formatClock(state.remainingMs);
-  roundLabel.textContent = `ROUND ${String(state.round).padStart(2, "0")}`;
+  renderRoundLabel();
   modeLabel.textContent = state.gameMode === "versus"
     ? `VERSUS · ${labelFor("difficulty")}`
     : `SCORE TRIAL · ${labelFor("difficulty")}`;
@@ -1993,7 +2028,10 @@ function endGame() {
   state.remainingMs = 0;
   timerText.textContent = formatClock(0);
   const activeTeam = state.teams[state.activeTeamIndex];
-  if (activeTeam) activeTeam.completed = true;
+  if (activeTeam) {
+    activeTeam.completed = true;
+    incrementTodayRoundCount();
+  }
   renderResultBoard();
 
   showScoreResultModal(activeTeam, () => advanceAfterEndGame(activeTeam));
