@@ -496,24 +496,37 @@ function escapeHtml(value) {
 function renderScoreRecords() {
   if (!recordList) return;
   const sortedRecords = [...scoreRecords].sort((a, b) => b.score - a.score);
+  let previousScore = null;
+  let currentRank = 0;
   recordList.innerHTML = sortedRecords
-    .map((record, index) => `
-      <li
-        data-record-id="${escapeHtml(record.id)}"
-        class="${record.id === activeRecordId ? "is-active" : ""}"
-        tabindex="0"
-        aria-expanded="${record.id === activeRecordId ? "true" : "false"}"
-      >
-        <div class="record-main">
-          <span>${index + 1}위 ${escapeHtml(record.name)}</span>
-          <b>${record.score}점</b>
-        </div>
-        <div class="record-actions" aria-label="${escapeHtml(record.name)} 기록 관리">
-          <button type="button" data-record-action="edit">수정</button>
-          <button type="button" data-record-action="delete">삭제</button>
-        </div>
-      </li>
-    `)
+    .map((record, index) => {
+      if (record.score !== previousScore) {
+        currentRank = index + 1;
+        previousScore = record.score;
+      }
+      const isTied = sortedRecords.some((otherRecord, otherIndex) => (
+        otherIndex !== index && otherRecord.score === record.score
+      ));
+      const rankLabel = isTied ? `공동 ${currentRank}위` : `${currentRank}위`;
+
+      return `
+        <li
+          data-record-id="${escapeHtml(record.id)}"
+          class="${record.id === activeRecordId ? "is-active" : ""}"
+          tabindex="0"
+          aria-expanded="${record.id === activeRecordId ? "true" : "false"}"
+        >
+          <div class="record-main">
+            <span>${rankLabel} ${escapeHtml(record.name)}</span>
+            <b>${record.score}점</b>
+          </div>
+          <div class="record-actions" aria-label="${escapeHtml(record.name)} 기록 관리">
+            <button type="button" data-record-action="edit">수정</button>
+            <button type="button" data-record-action="delete">삭제</button>
+          </div>
+        </li>
+      `;
+    })
     .join("");
 }
 
