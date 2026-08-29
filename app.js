@@ -538,7 +538,7 @@ function renderScoreRecords() {
       const isTied = sortedRecords.some((otherRecord, otherIndex) => (
         otherIndex !== index && otherRecord.score === record.score
       ));
-      const rankLabel = isTied ? `공동 ${currentRank}위` : `${currentRank}위`;
+      const rankLabel = isTied ? `공동 ${currentRank}등` : `${currentRank}등`;
 
       return `
         <li
@@ -762,7 +762,7 @@ function renderResultBoard() {
   if (!winner) return;
   const tied = ranked.filter(({ team }) => team.score === winner.score);
 
-  winnerText.textContent = tied.length > 1 ? "공동 1위" : `${winner.name} WIN`;
+  winnerText.textContent = tied.length > 1 ? "공동 1등" : `${winner.name} WIN`;
   const resultPrefix = state.gameMode === "versus" ? "대결" : "점수 내기";
   resultSummary.textContent = tied.length > 1
     ? `${tied.map(({ team }) => team.name).join(" · ")} · ${winner.score}점`
@@ -774,7 +774,7 @@ function renderResultBoard() {
       const isTied = ranked.some(({ team: otherTeam, rank: otherRank }, otherIndex) => (
         otherIndex !== index && otherRank === rank && otherTeam.score === team.score
       ));
-      const rankLabel = isTied ? `공동 ${rank}위` : `${rank}위`;
+      const rankLabel = isTied ? `공동 ${rank}등` : `${rank}등`;
       return `
         <div class="podium-row" data-team-index="${originalIndex}">
           <span>${rankLabel}. ${team.name}</span>
