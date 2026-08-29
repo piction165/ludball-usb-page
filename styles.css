@@ -486,7 +486,7 @@ button:active {
 
 .score-stage {
   display: grid;
-  grid-template-columns: clamp(210px, 17vw, 300px) minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 33.333%) minmax(0, 1fr);
   gap: clamp(14px, 1.6vw, 24px);
   min-height: 0;
   overflow: hidden;
@@ -1797,7 +1797,7 @@ button:active {
   }
 
   .score-stage {
-    grid-template-columns: clamp(190px, 15vw, 260px) minmax(0, 1fr);
+    grid-template-columns: minmax(300px, 33.333%) minmax(0, 1fr);
     gap: 14px;
   }
 
