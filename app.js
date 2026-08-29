@@ -527,9 +527,21 @@ function escapeHtml(value) {
 function renderScoreRecords() {
   if (!recordList) return;
   const sortedRecords = [...scoreRecords].sort((a, b) => b.score - a.score);
+  const scoreCounts = sortedRecords.reduce((counts, record) => {
+    counts.set(record.score, (counts.get(record.score) || 0) + 1);
+    return counts;
+  }, new Map());
+  let displayRank = 0;
+  let previousScore = null;
   recordList.innerHTML = sortedRecords
     .map((record, index) => {
-      const rankLabel = `${index + 1}위`;
+      if (record.score !== previousScore) {
+        displayRank += 1;
+        previousScore = record.score;
+      }
+      const rankLabel = scoreCounts.get(record.score) > 1
+        ? `공동 ${displayRank}위`
+        : `${displayRank}위`;
 
       return `
         <li
@@ -738,9 +750,9 @@ function rankedTeams() {
   let previousScore = null;
   let currentRank = 0;
 
-  return sortedTeams().map((team, index) => {
+  return sortedTeams().map((team) => {
     if (team.score !== previousScore) {
-      currentRank = index + 1;
+      currentRank += 1;
       previousScore = team.score;
     }
     return { team, rank: currentRank };
